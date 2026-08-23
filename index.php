@@ -20,7 +20,7 @@ $myBookings = [];
 $myLoans = [];
 if ($uid = current_user_id()) {
     $stmt = $conn->prepare('
-        SELECT b.id, r.room_name, b.booking_date, b.time_slot, b.purpose
+        SELECT b.id, r.room_name, b.booking_date, b.time_slot, b.purpose, b.status
         FROM bookings b
         JOIN rooms r ON r.id = b.room_id
         WHERE b.user_id = ?
@@ -183,6 +183,9 @@ $books = $conn->query('
 
 <section>
 <h2>My Bookings</h2>
+<?php if (isset($_GET['booked'])): ?>
+<p class="alert alert-success">Booking submitted! It's <strong>Pending</strong> until the library front desk confirms it.</p>
+<?php endif; ?>
 <?php if (!current_user_id()): ?>
 <p><a href="login.php">Login</a> or <a href="register.php">register</a> to view and manage your bookings.</p>
 <?php elseif (empty($myBookings)): ?>
@@ -192,19 +195,25 @@ $books = $conn->query('
 </div>
 <?php else: ?>
 <table>
-<tr><th>Room</th><th>Date</th><th>Time Slot</th><th>Purpose</th><th>Actions</th></tr>
+<tr><th>Room</th><th>Date</th><th>Time Slot</th><th>Purpose</th><th>Status</th><th>Actions</th></tr>
 <?php foreach ($myBookings as $b): ?>
+<?php $displayStatus = booking_display_status($b['status'], $b['booking_date'], $b['time_slot']); ?>
 <tr>
 <td><?= htmlspecialchars($b['room_name']) ?></td>
 <td><?= htmlspecialchars($b['booking_date']) ?></td>
 <td><?= htmlspecialchars($b['time_slot']) ?></td>
 <td><?= htmlspecialchars($b['purpose']) ?></td>
+<td><span class="badge <?= booking_status_badge_class($displayStatus) ?>"><?= booking_status_label($displayStatus) ?></span></td>
 <td>
+<?php if ($displayStatus !== 'done'): ?>
 <a class="btn btn-secondary btn-small" href="edit.php?id=<?= (int)$b['id'] ?>">Edit</a>
 <form action="delete.php" method="post" style="display:inline" onsubmit="return confirm('Delete this booking?');">
 <input type="hidden" name="id" value="<?= (int)$b['id'] ?>">
 <button type="submit" class="btn-small btn-danger">Delete</button>
 </form>
+<?php else: ?>
+&mdash;
+<?php endif; ?>
 </td>
 </tr>
 <?php endforeach; ?>

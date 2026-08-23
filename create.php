@@ -24,11 +24,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (is_slot_in_past($booking_date, $time_slot)) {
         $error = 'That time slot has already passed today. Please choose a later time slot.';
     } else {
-        $stmt = $conn->prepare('INSERT INTO bookings (user_id, room_id, booking_date, time_slot, purpose) VALUES (?, ?, ?, ?, ?)');
+        $stmt = $conn->prepare("INSERT INTO bookings (user_id, room_id, booking_date, time_slot, purpose, status) VALUES (?, ?, ?, ?, ?, 'pending')");
         $stmt->bind_param('iisss', $uid, $room_id, $booking_date, $time_slot, $purpose);
         if ($stmt->execute()) {
             $stmt->close();
-            header('Location: index.php');
+            header('Location: index.php?booked=1');
             exit;
         }
         $error = ($conn->errno === 1062)
@@ -45,6 +45,7 @@ require 'partials/header.php';
 ?>
 <div class="form-card">
 <h1>New Discussion Room Booking</h1>
+<p class="form-hint">Your booking starts as <strong>Pending</strong> until the library front desk confirms it.</p>
 <?php if ($error): ?><p class="alert alert-error"><?= htmlspecialchars($error) ?></p><?php endif; ?>
 <form method="post">
 <label>Room
