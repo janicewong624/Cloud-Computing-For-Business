@@ -1,10 +1,11 @@
 <?php
 require '../config.php';
 require '../auth.php';
+require '../helpers.php';
 require_admin();
 
 $bookings = $conn->query('
-    SELECT b.id, r.room_name, b.booking_date, b.time_slot, b.purpose, u.name AS user_name, u.email AS user_email
+    SELECT b.id, r.room_name, b.booking_date, b.time_slot, b.purpose, b.status, u.name AS user_name, u.email AS user_email
     FROM bookings b
     JOIN rooms r ON r.id = b.room_id
     JOIN users u ON u.id = b.user_id

@@ -17,6 +17,10 @@ if (!$booking) {
     die('Booking not found or you do not have permission to edit it.');
 }
 
+if (booking_display_status($booking['status'], $booking['booking_date'], $booking['time_slot']) === 'done') {
+    die('This booking has already been used and can no longer be edited.');
+}
+
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -35,11 +39,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'That time slot has already passed today. Please choose a later time slot.';
         $booking = array_merge($booking, compact('room_id', 'booking_date', 'time_slot', 'purpose'));
     } else {
-        $stmt = $conn->prepare('UPDATE bookings SET room_id=?, booking_date=?, time_slot=?, purpose=? WHERE id=? AND user_id=?');
+        $stmt = $conn->prepare("UPDATE bookings SET room_id=?, booking_date=?, time_slot=?, purpose=?, status='pending' WHERE id=? AND user_id=?");
         $stmt->bind_param('isssii', $room_id, $booking_date, $time_slot, $purpose, $id, $uid);
         if ($stmt->execute()) {
             $stmt->close();
-            header('Location: index.php');
+            header('Location: index.php?booked=1');
             exit;
         }
         $error = ($conn->errno === 1062)
@@ -57,6 +61,7 @@ require 'partials/header.php';
 ?>
 <div class="form-card">
 <h1>Edit Room Booking</h1>
+<p class="form-hint">Current status: <span class="badge <?= booking_status_badge_class(booking_display_status($booking['status'], $booking['booking_date'], $booking['time_slot'])) ?>"><?= booking_status_label(booking_display_status($booking['status'], $booking['booking_date'], $booking['time_slot'])) ?></span> &mdash; changing any detail below resets it to Pending for re-confirmation.</p>
 <?php if ($error): ?><p class="alert alert-error"><?= htmlspecialchars($error) ?></p><?php endif; ?>
 <form method="post">
 <input type="hidden" name="id" value="<?= (int)$booking['id'] ?>">
