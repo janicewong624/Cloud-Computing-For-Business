@@ -51,6 +51,38 @@ function is_slot_in_past($date, $timeSlot) {
     return $slotStart !== false && $slotStart < time();
 }
 
+function is_booking_slot_over($date, $timeSlot) {
+    $parts = explode(' - ', $timeSlot);
+    $endTime = trim(end($parts));
+    $slotEnd = strtotime($date . ' ' . $endTime);
+    return $slotEnd !== false && $slotEnd < time();
+}
+
+function booking_display_status($status, $bookingDate, $timeSlot) {
+    if ($status !== 'done' && is_booking_slot_over($bookingDate, $timeSlot)) {
+        return 'done';
+    }
+    return $status;
+}
+
+function booking_status_badge_class($status) {
+    switch ($status) {
+        case 'pending':   return 'badge-pending';
+        case 'confirmed': return 'badge-confirmed';
+        case 'done':      return 'badge-good';
+        default:          return 'badge-neutral';
+    }
+}
+
+function booking_status_label($status) {
+    switch ($status) {
+        case 'pending':   return 'Pending';
+        case 'confirmed': return 'Confirmed';
+        case 'done':      return 'Done';
+        default:          return ucfirst($status);
+    }
+}
+
 // Library overdue fine: RM0.50 per day late. Computed against the actual return
 // date if the book has already been returned, or against today if it's still out -
 // so a returned-but-late book keeps its fine on record instead of it disappearing
