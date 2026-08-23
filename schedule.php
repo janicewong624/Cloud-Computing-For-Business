@@ -1,13 +1,14 @@
 <?php
 require 'config.php';
 require 'auth.php';
+require 'helpers.php';
 
 $date = $_GET['date'] ?? date('Y-m-d');
 
 $rooms = $conn->query('SELECT * FROM rooms ORDER BY room_name')->fetch_all(MYSQLI_ASSOC);
 
 $stmt = $conn->prepare('
-    SELECT room_id, time_slot, purpose
+    SELECT room_id, time_slot, purpose, status
     FROM bookings
     WHERE booking_date = ?
     ORDER BY time_slot
@@ -47,9 +48,10 @@ require 'partials/header.php';
 <table>
 <tr><th>Time Slot</th><th>Status</th></tr>
 <?php foreach ($bookingsByRoom[$r['id']] as $b): ?>
+<?php $displayStatus = booking_display_status($b['status'], $date, $b['time_slot']); ?>
 <tr>
 <td><?= htmlspecialchars($b['time_slot']) ?></td>
-<td><span class="badge badge-neutral">Booked</span></td>
+<td><span class="badge <?= booking_status_badge_class($displayStatus) ?>"><?= booking_status_label($displayStatus) ?></span></td>
 </tr>
 <?php endforeach; ?>
 </table>

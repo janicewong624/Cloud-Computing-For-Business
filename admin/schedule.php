@@ -1,6 +1,7 @@
 <?php
 require '../config.php';
 require '../auth.php';
+require '../helpers.php';
 require_admin();
 
 $date = $_GET['date'] ?? date('Y-m-d');
@@ -8,7 +9,7 @@ $date = $_GET['date'] ?? date('Y-m-d');
 $rooms = $conn->query('SELECT * FROM rooms ORDER BY room_name')->fetch_all(MYSQLI_ASSOC);
 
 $stmt = $conn->prepare('
-    SELECT b.room_id, b.time_slot, b.purpose, u.name, u.email
+    SELECT b.room_id, b.time_slot, b.purpose, b.status u.name, u.email
     FROM bookings b
     JOIN users u ON u.id = b.user_id
     WHERE b.booking_date = ?
@@ -45,13 +46,15 @@ require 'partials/header.php';
 </div>
 <?php else: ?>
 <table>
-<tr><th>Time Slot</th><th>Purpose</th><th>Booked By</th><th>Email</th></tr>
+<tr><th>Time Slot</th><th>Purpose</th><th>Booked By</th><th>Email</th><th>Status</th></tr>
 <?php foreach ($bookingsByRoom[$r['id']] as $b): ?>
+<?php $displayStatus = booking_display_status($b['status'], $date, $b['time_slot']); ?>
 <tr>
 <td><?= htmlspecialchars($b['time_slot']) ?></td>
 <td><?= htmlspecialchars($b['purpose']) ?></td>
 <td><?= htmlspecialchars($b['name']) ?></td>
 <td><?= htmlspecialchars($b['email']) ?></td>
+<td><span class="badge <?= booking_status_badge_class($displayStatus) ?>"><?= booking_status_label($displayStatus) ?></span></td>
 </tr>
 <?php endforeach; ?>
 </table>
