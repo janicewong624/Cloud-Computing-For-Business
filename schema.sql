@@ -39,6 +39,7 @@ CREATE TABLE bookings (
   booking_date DATE NOT NULL,
   time_slot VARCHAR(20) NOT NULL,
   purpose VARCHAR(150) NOT NULL,
+  status ENUM('pending', 'confirmed', 'done') NOT NULL DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (room_id) REFERENCES rooms(id),

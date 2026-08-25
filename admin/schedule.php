@@ -9,7 +9,7 @@ $date = $_GET['date'] ?? date('Y-m-d');
 $rooms = $conn->query('SELECT * FROM rooms ORDER BY room_name')->fetch_all(MYSQLI_ASSOC);
 
 $stmt = $conn->prepare('
-    SELECT b.room_id, b.time_slot, b.purpose, b.status u.name, u.email
+    SELECT b.room_id, b.time_slot, b.purpose, b.status, u.name, u.email
     FROM bookings b
     JOIN users u ON u.id = b.user_id
     WHERE b.booking_date = ?
