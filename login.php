@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_name'] = $user['name'];
         $_SESSION['is_admin'] = (bool)$user['is_admin'];
-        header('Location: ' . ($user['is_admin'] ? 'admin/rooms.php' : 'index.php'));
+        header('Location: ' . ($user['is_admin'] ? 'admin/dashboard.php' : 'index.php'));
         exit;
     } else {
         $error = 'Invalid email or password.';

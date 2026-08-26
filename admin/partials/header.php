@@ -22,8 +22,9 @@ $activityPages = ['schedule.php', 'bookings.php', 'loans.php', 'book_loans.php']
 </head>
 <body>
 <nav class="navbar">
-<a class="brand" href="rooms.php"><img src="../assets/tarumt-logo.png" alt="TAR UMT" class="brand-logo">Admin &middot; Academic &amp; Library Resource Scheduling</a>
+<a class="brand" href="dashboard.php"><img src="../assets/tarumt-logo.png" alt="TAR UMT" class="brand-logo">Admin &middot; Academic &amp; Library Resource Scheduling</a>
 <div class="nav-links">
+<a href="dashboard.php" class="<?= $currentPage === 'dashboard.php' ? 'active' : '' ?>">Dashboard</a>
 <div class="nav-dropdown" data-nav-dropdown>
 <button type="button" class="nav-dropdown-trigger <?= in_array($currentPage, $resourcePages) ? 'active' : '' ?>" aria-haspopup="true" aria-expanded="false">Resources &#9662;</button>
 <div class="nav-dropdown-menu">
