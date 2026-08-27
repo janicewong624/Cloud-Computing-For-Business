@@ -1,15 +1,15 @@
 :root {
   color-scheme: light;
 
-  --accent: #1e8449;
-  --accent-dark: #146339;
-  --accent-soft: #e9f7ef;
-  --bg: #f5f7f6;
+  --accent: #5483B3;
+  --accent-dark: #052659;
+  --accent-soft: #C1E8FF;
+  --bg: #f2f7fb;
   --surface: #ffffff;
-  --surface-alt: #f8faf9;
-  --text: #1a1f1c;
-  --text-muted: #647169;
-  --border: #e0e8e3;
+  --surface-alt: #f7fafd;
+  --text: #021024;
+  --text-muted: #5b6b7c;
+  --border: #d7e6f0;
   --danger: #c0392b;
   --danger-dark: #a5301f;
   --danger-soft: #fceceb;
@@ -17,8 +17,8 @@
   --success-soft: #eafaf1;
   --warning: #8a5a00;
   --warning-soft: #fff4e0;
-  --info: #1a5fb4;
-  --info-soft: #e7f1fc;
+  --info: #7DA0CA;
+  --info-soft: #eaf5fd;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
@@ -31,15 +31,15 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 
-    --accent: #4caf7d;
-    --accent-dark: #3d8f66;
-    --accent-soft: #203028;
-    --bg: #121915;
-    --surface: #1a2620;
-    --surface-alt: #202e27;
-    --text: #eef5f0;
-    --text-muted: #9db3a7;
-    --border: #2e4038;
+    --accent: #7DA0CA;
+    --accent-dark: #5483B3;
+    --accent-soft: #0b2a52;
+    --bg: #021024;
+    --surface: #052659;
+    --surface-alt: #063169;
+    --text: #C1E8FF;
+    --text-muted: #7DA0CA;
+    --border: #163a66;
     --danger: #e5695a;
     --danger-dark: #f08a7e;
     --danger-soft: #3a221f;
@@ -48,8 +48,8 @@
 
     --warning: #e8b84b;
     --warning-soft: #3a2f14;
-    --info: #6fa8dc;
-    --info-soft: #17293d;
+    --info: #7DA0CA;
+    --info-soft: #0c2f57;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
     --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.5);
@@ -60,15 +60,15 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --accent: #4caf7d;
-  --accent-dark: #3d8f66;
-  --accent-soft: #203028;
-  --bg: #121915;
-  --surface: #1a2620;
-  --surface-alt: #202e27;
-  --text: #eef5f0;
-  --text-muted: #9db3a7;
-  --border: #2e4038;
+  --accent: #7DA0CA;
+  --accent-dark: #5483B3;
+  --accent-soft: #0b2a52;
+  --bg: #021024;
+  --surface: #052659;
+  --surface-alt: #063169;
+  --text: #C1E8FF;
+  --text-muted: #7DA0CA;
+  --border: #163a66;
   --danger: #e5695a;
   --danger-dark: #f08a7e;
   --danger-soft: #3a221f;
@@ -77,8 +77,8 @@
 
   --warning: #e8b84b;
   --warning-soft: #3a2f14;
-  --info: #6fa8dc;
-  --info-soft: #17293d;
+  --info: #7DA0CA;
+  --info-soft: #0c2f57;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.5);
