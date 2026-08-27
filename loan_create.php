@@ -24,6 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Loan date cannot be in the past.';
     } elseif (is_slot_in_past($loan_date, $time_slot)) {
         $error = 'That time slot has already passed today. Please choose a later time slot.';
+    } elseif (user_equipment_units_today($conn, $uid, $loan_date) + $quantity > DAILY_EQUIPMENT_UNIT_CAP) {
+        $remaining = max(0, DAILY_EQUIPMENT_UNIT_CAP - user_equipment_units_today($conn, $uid, $loan_date));
+        $error = "You've reached the daily equipment loan limit of " . DAILY_EQUIPMENT_UNIT_CAP . " unit(s) per day ($remaining remaining today). Please reduce the quantity or choose a different date.";
     } else {
         $conn->begin_transaction();
 
@@ -69,6 +72,7 @@ require 'partials/header.php';
 ?>
 <div class="form-card">
 <h1>New Equipment Loan</h1>
+<p class="form-hint">You can loan up to <?= DAILY_EQUIPMENT_UNIT_CAP ?> equipment units in total per day.</p> 
 <?php if ($error): ?><p class="alert alert-error"><?= htmlspecialchars($error) ?></p><?php endif; ?>
 <form method="post">
 <label>Equipment

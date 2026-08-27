@@ -38,6 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (is_slot_in_past($booking_date, $time_slot)) {
         $error = 'That time slot has already passed today. Please choose a later time slot.';
         $booking = array_merge($booking, compact('room_id', 'booking_date', 'time_slot', 'purpose'));
+    } elseif (user_room_bookings_today_count($conn, $uid, $booking_date, $id) >= DAILY_ROOM_BOOKING_CAP) {
+        $error = "You've reached the daily limit of " . DAILY_ROOM_BOOKING_CAP . " room booking(s) per day. Please choose a different date.";
+        $booking = array_merge($booking, compact('room_id', 'booking_date', 'time_slot', 'purpose'));
     } else {
         $stmt = $conn->prepare("UPDATE bookings SET room_id=?, booking_date=?, time_slot=?, purpose=?, status='pending' WHERE id=? AND user_id=?");
         $stmt->bind_param('isssii', $room_id, $booking_date, $time_slot, $purpose, $id, $uid);

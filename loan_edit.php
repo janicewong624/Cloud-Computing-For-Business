@@ -35,6 +35,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (is_slot_in_past($loan_date, $time_slot)) {
         $error = 'That time slot has already passed today. Please choose a later time slot.';
         $loan = array_merge($loan, compact('equipment_id', 'loan_date', 'time_slot', 'quantity', 'purpose'));
+    } elseif (user_equipment_units_today($conn, $uid, $loan_date, $id) + $quantity > DAILY_EQUIPMENT_UNIT_CAP) {
+        $remaining = max(0, DAILY_EQUIPMENT_UNIT_CAP - user_equipment_units_today($conn, $uid, $loan_date, $id));
+        $error = "You've reached the daily equipment loan limit of " . DAILY_EQUIPMENT_UNIT_CAP . " unit(s) per day ($remaining remaining today). Please reduce the quantity or choose a different date.";
+        $loan = array_merge($loan, compact('equipment_id', 'loan_date', 'time_slot', 'quantity', 'purpose'));
     } else {
         $conn->begin_transaction();
 

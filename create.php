@@ -23,6 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Booking date cannot be in the past.';
     } elseif (is_slot_in_past($booking_date, $time_slot)) {
         $error = 'That time slot has already passed today. Please choose a later time slot.';
+    } elseif (user_room_bookings_today_count($conn, $uid, $booking_date) >= DAILY_ROOM_BOOKING_CAP) {
+        $error = "You've reached the daily limit of " . DAILY_ROOM_BOOKING_CAP . " room booking(s) per day. Please choose a different date, or cancel an existing booking on $booking_date first.";
     } else {
         $stmt = $conn->prepare("INSERT INTO bookings (user_id, room_id, booking_date, time_slot, purpose, status) VALUES (?, ?, ?, ?, ?, 'pending')");
         $stmt->bind_param('iisss', $uid, $room_id, $booking_date, $time_slot, $purpose);
@@ -46,6 +48,7 @@ require 'partials/header.php';
 <div class="form-card">
 <h1>New Discussion Room Booking</h1>
 <p class="form-hint">Your booking starts as <strong>Pending</strong> until the library front desk confirms it.</p>
+<p class="form-hint">You can book up to <?= DAILY_ROOM_BOOKING_CAP ?> discussion room slots per day.</p>
 <?php if ($error): ?><p class="alert alert-error"><?= htmlspecialchars($error) ?></p><?php endif; ?>
 <form method="post">
 <label>Room

@@ -38,6 +38,59 @@ function campus_time_slots() {
     ];
 }
 
+// Daily caps: how much a single account can book per day, per resource
+// type, so one account can't hog every slot for a popular resource on a
+// given day. Flat constants are enough to demonstrate the control for this
+// project - a real deployment might vary these per membership tier.
+define('DAILY_ROOM_BOOKING_CAP', 2);   // max room time-slot bookings per user per day, across all rooms
+define('DAILY_EQUIPMENT_UNIT_CAP', 5); // max total equipment units per user per day, across all items
+define('DAILY_BOOK_LOAN_CAP', 3);      // max new book checkouts per user per day
+
+// How many room bookings this user already has for $date. Pass
+// $excludeBookingId when editing an existing booking so it doesn't count
+// against itself.
+function user_room_bookings_today_count($conn, $userId, $date, $excludeBookingId = null) {
+    if ($excludeBookingId) {
+        $stmt = $conn->prepare('SELECT COUNT(*) c FROM bookings WHERE user_id = ? AND booking_date = ? AND id != ?');
+        $stmt->bind_param('isi', $userId, $date, $excludeBookingId);
+    } else {
+        $stmt = $conn->prepare('SELECT COUNT(*) c FROM bookings WHERE user_id = ? AND booking_date = ?');
+        $stmt->bind_param('is', $userId, $date);
+    }
+    $stmt->execute();
+    $count = (int)$stmt->get_result()->fetch_assoc()['c'];
+    $stmt->close();
+    return $count;
+}
+
+// Total equipment units this user has already loaned for $date (summed
+// across every loan, not just one item). Pass $excludeLoanId when editing.
+function user_equipment_units_today($conn, $userId, $date, $excludeLoanId = null) {
+    if ($excludeLoanId) {
+        $stmt = $conn->prepare('SELECT COALESCE(SUM(quantity), 0) c FROM equipment_loans WHERE user_id = ? AND loan_date = ? AND id != ?');
+        $stmt->bind_param('isi', $userId, $date, $excludeLoanId);
+    } else {
+        $stmt = $conn->prepare('SELECT COALESCE(SUM(quantity), 0) c FROM equipment_loans WHERE user_id = ? AND loan_date = ?');
+        $stmt->bind_param('is', $userId, $date);
+    }
+    $stmt->execute();
+    $count = (int)$stmt->get_result()->fetch_assoc()['c'];
+    $stmt->close();
+    return $count;
+}
+
+// How many new book checkouts this user has already made today. Book loans
+// don't have an edit page (only create + return), so there's no "exclude"
+// case to handle here.
+function user_book_loans_today_count($conn, $userId, $date) {
+    $stmt = $conn->prepare('SELECT COUNT(*) c FROM book_loans WHERE user_id = ? AND checkout_date = ?');
+    $stmt->bind_param('is', $userId, $date);
+    $stmt->execute();
+    $count = (int)$stmt->get_result()->fetch_assoc()['c'];
+    $stmt->close();
+    return $count;
+}
+
 // True if a time slot (e.g. "09:00 - 10:00") on the given date has already
 // started relative to now - used to block booking a room/equipment slot
 // that's already passed when the date is today (a future date is never "in
