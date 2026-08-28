@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../helpers.php';
 $loggedIn = current_user_id() !== null;
 $currentPage = basename($_SERVER['PHP_SELF']);
 function nav_active($page, $current) {
@@ -36,6 +37,8 @@ function nav_active($page, $current) {
 <a href="about.php" class="<?= trim(nav_active('about.php', $currentPage)) ?>">About</a>
 <a href="contact.php" class="<?= trim(nav_active('contact.php', $currentPage)) ?>">Contact</a>
 <?php if ($loggedIn): ?>
+<?php $chatUnread = chat_unread_count_for_user($conn, current_user_id()); ?>
+<a href="chat.php" class="<?= trim(nav_active('chat.php', $currentPage)) ?>">Live Chat<?php if ($chatUnread > 0): ?> <span class="chat-badge"><?= $chatUnread ?></span><?php endif; ?></a>
 <div class="user-menu">
 <button type="button" class="nav-user user-menu-trigger" aria-haspopup="true" aria-expanded="false">
 <span class="user-avatar"><?= htmlspecialchars(mb_strtoupper(mb_substr(current_user_name(), 0, 1))) ?></span> Hi, <?= htmlspecialchars(current_user_name()) ?>

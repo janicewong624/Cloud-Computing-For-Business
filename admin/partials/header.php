@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../helpers.php';
 $currentPage = basename($_SERVER['PHP_SELF']);
 $resourcePages = ['rooms.php', 'room_create.php', 'room_edit.php', 'equipment.php', 'equipment_create.php', 'equipment_edit.php', 'books.php', 'book_create.php', 'book_edit.php'];
 $activityPages = ['schedule.php', 'bookings.php', 'loans.php', 'book_loans.php'];
@@ -44,6 +45,8 @@ $activityPages = ['schedule.php', 'bookings.php', 'loans.php', 'book_loans.php']
 </div>
 <a href="testimonials.php" class="<?= $currentPage === 'testimonials.php' ? 'active' : '' ?>">Testimonials</a>
 <a href="messages.php" class="<?= $currentPage === 'messages.php' ? 'active' : '' ?>">Messages</a>
+<?php $chatUnreadAdmin = chat_unread_count_for_admin($conn); ?>
+<a href="chat.php" class="<?= $currentPage === 'chat.php' ? 'active' : '' ?>">Live Chat<?php if ($chatUnreadAdmin > 0): ?> <span class="chat-badge"><?= $chatUnreadAdmin ?></span><?php endif; ?></a>
 <a href="users.php" class="<?= $currentPage === 'users.php' ? 'active' : '' ?>">Users</a>
 <a href="../logout.php">Logout</a>
 <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">&#9728;</button>

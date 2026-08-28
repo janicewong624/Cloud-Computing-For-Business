@@ -118,11 +118,16 @@ CREATE TABLE testimonials (
 
 CREATE TABLE contact_messages (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  email VARCHAR(150) NOT NULL,
-  subject VARCHAR(150) NOT NULL,
+  user_id INT NOT NULL,
+  sender_role ENUM('user', 'admin') NOT NULL,
+  sender_id INT NOT NULL,
   message TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  read_by_user TINYINT(1) NOT NULL DEFAULT 0,
+  read_by_admin TINYINT(1) NOT NULL DEFAULT 0,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (sender_id) REFERENCES users(id),
+  INDEX idx_user_created (user_id, created_at)
 );
 
 -- PHP sessions are stored here instead of on local disk, so that any EC2
