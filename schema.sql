@@ -118,6 +118,15 @@ CREATE TABLE testimonials (
 
 CREATE TABLE contact_messages (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(150) NOT NULL,
+  subject VARCHAR(150) NOT NULL,
+  message TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE chat_messages (
+  id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   sender_role ENUM('user', 'admin') NOT NULL,
   sender_id INT NOT NULL,
