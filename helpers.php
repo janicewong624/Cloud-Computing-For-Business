@@ -91,7 +91,20 @@ function user_book_loans_today_count($conn, $userId, $date) {
     return $count;
 }
 
-//Live Chat
+// True if a time slot (e.g. "09:00 - 10:00") on the given date has already
+// started relative to now - used to block booking a room/equipment slot
+// that's already passed when the date is today (a future date is never "in
+// the past" no matter the slot).
+function is_slot_in_past($date, $timeSlot) {
+    $startTime = trim(explode(' - ', $timeSlot)[0] ?? '');
+    if ($startTime === '') {
+        return false;
+    }
+    $slotStart = strtotime($date . ' ' . $startTime);
+    return $slotStart !== false && $slotStart < time();
+}
+
+// ---- Live chat helpers ----
 // Unread admin replies for this user (shown as a nav badge on their side).
 function chat_unread_count_for_user($conn, $userId) {
     $stmt = $conn->prepare("SELECT COUNT(*) c FROM chat_messages WHERE user_id = ? AND sender_role = 'admin' AND read_by_user = 0");
@@ -106,19 +119,6 @@ function chat_unread_count_for_user($conn, $userId) {
 function chat_unread_count_for_admin($conn) {
     $result = $conn->query("SELECT COUNT(*) c FROM chat_messages WHERE sender_role = 'user' AND read_by_admin = 0");
     return (int)$result->fetch_assoc()['c'];
-}
-
-// True if a time slot (e.g. "09:00 - 10:00") on the given date has already
-// started relative to now - used to block booking a room/equipment slot
-// that's already passed when the date is today (a future date is never "in
-// the past" no matter the slot).
-function is_slot_in_past($date, $timeSlot) {
-    $startTime = trim(explode(' - ', $timeSlot)[0] ?? '');
-    if ($startTime === '') {
-        return false;
-    }
-    $slotStart = strtotime($date . ' ' . $startTime);
-    return $slotStart !== false && $slotStart < time();
 }
 
 function is_booking_slot_over($date, $timeSlot) {
