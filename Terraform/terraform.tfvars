@@ -15,7 +15,7 @@ app_subdir   = "library-resource-scheduling"
 
 # 自己設一個資料庫密碼（至少8位，包含大小寫字母跟數字，不要用 @ / " $ 這種特殊符號）
 db_username = "admin"
-db_password = "admin1234"
+db_password = "Admin1234"
 db_name     = "library_booking_db"
 
 # 去 AWS Academy 的 AWS Details 標籤確認，通常是這個名字
