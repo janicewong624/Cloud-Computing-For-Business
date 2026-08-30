@@ -12,12 +12,12 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
   enable_dns_hostnames = true
 
-  tags = { Name = "${var.project_name}-vpc" }
+  tags = { Name = "library-vpc" }
 }
 
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
-  tags   = { Name = "${var.project_name}-igw" }
+  tags   = { Name = "library-igw" }
 }
 
 # ---- Public subnets (AZ-a / AZ-b) - only the NAT Gateway + bastion host live here ----
@@ -26,7 +26,7 @@ resource "aws_subnet" "public_a" {
   cidr_block              = "10.0.0.0/20"
   availability_zone       = local.az_a
   map_public_ip_on_launch = true
-  tags                    = { Name = "${var.project_name}-public-1a" }
+  tags                    = { Name = "library-public-1a" }
 }
 
 resource "aws_subnet" "public_b" {
@@ -34,7 +34,7 @@ resource "aws_subnet" "public_b" {
   cidr_block              = "10.0.16.0/20"
   availability_zone       = local.az_b
   map_public_ip_on_launch = true
-  tags                    = { Name = "${var.project_name}-public-2b" }
+  tags                    = { Name = "library-public-2b" }
 }
 
 # ---- Private subnets: Web Tier (AZ-a / AZ-b) ----
@@ -42,14 +42,14 @@ resource "aws_subnet" "web_a" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.32.0/20"
   availability_zone = local.az_a
-  tags              = { Name = "${var.project_name}-private-web-3a" }
+  tags              = { Name = "library-private-web-3a" }
 }
 
 resource "aws_subnet" "web_b" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.48.0/20"
   availability_zone = local.az_b
-  tags              = { Name = "${var.project_name}-private-web-4b" }
+  tags              = { Name = "library-private-web-4b" }
 }
 
 # ---- Private subnets: Application Tier (AZ-a / AZ-b) ----
@@ -57,14 +57,14 @@ resource "aws_subnet" "app_a" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.64.0/20"
   availability_zone = local.az_a
-  tags              = { Name = "${var.project_name}-private-app-5a" }
+  tags              = { Name = "library-private-app-5a" }
 }
 
 resource "aws_subnet" "app_b" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.80.0/20"
   availability_zone = local.az_b
-  tags              = { Name = "${var.project_name}-private-app-6b" }
+  tags              = { Name = "library-private-app-6b" }
 }
 
 # ---- Private subnets: Database Tier - RDS only lives in AZ-a (single-AZ) ----
@@ -72,34 +72,34 @@ resource "aws_subnet" "db_a" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.160.0/20"
   availability_zone = local.az_a
-  tags              = { Name = "${var.project_name}-private-db-7a" }
+  tags              = { Name = "library-private-db-7a" }
 }
 
 resource "aws_subnet" "db_b" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.176.0/20"
   availability_zone = local.az_b
-  tags              = { Name = "${var.project_name}-private-db-8b" }
+  tags              = { Name = "library-private-db-8b" }
 }
 
 # RDS still needs a subnet *group* spanning 2 AZs even in Single-AZ mode -
 # AWS requires this in case you switch to Multi-AZ later.
 resource "aws_db_subnet_group" "main" {
-  name       = "${var.project_name}-db-subnet-group"
+  name       = "library-db-subnet-group"
   subnet_ids = [aws_subnet.db_a.id, aws_subnet.db_b.id]
-  tags       = { Name = "${var.project_name}-db-subnet-group" }
+  tags       = { Name = "library-db-subnet-group" }
 }
 
 # ---- NAT Gateway (public subnet A) - lets the private tiers reach the internet ----
 resource "aws_eip" "nat" {
   domain = "vpc"
-  tags   = { Name = "${var.project_name}-nat-eip" }
+  tags   = { Name = "library-nat-eip" }
 }
 
 resource "aws_nat_gateway" "main" {
   allocation_id = aws_eip.nat.id
   subnet_id     = aws_subnet.public_a.id
-  tags          = { Name = "${var.project_name}-nat" }
+  tags          = { Name = "library-nat" }
   depends_on    = [aws_internet_gateway.main]
 }
 
@@ -110,7 +110,7 @@ resource "aws_route_table" "public" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.main.id
   }
-  tags = { Name = "${var.project_name}-public-rtb" }
+  tags = { Name = "library-public-rtb" }
 }
 
 resource "aws_route_table_association" "public_a" {
@@ -128,7 +128,7 @@ resource "aws_route_table" "private" {
     cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.main.id
   }
-  tags = { Name = "${var.project_name}-private-rtb" }
+  tags = { Name = "library-private-rtb" }
 }
 
 resource "aws_route_table_association" "web_a" {
