@@ -6,10 +6,8 @@ short_name   = "library"
 # 去 https://whatismyip.com 查你自己的公網 IP，換掉下面這串，/32 一定要保留
 my_ip_cidr = "1.2.3.4/32"
 
-# 換成你在 EC2 Console 建的 Key Pair 名字
-key_pair_name = "your-key-pair-name"
+key_pair_name = "Library"
 
-# 換成你自己的 GitHub repo
 git_repo_url = "https://github.com/janicewong624/Cloud-Computing-For-Business.git"
 app_subdir   = "library-resource-scheduling"
 
