@@ -1,0 +1,36 @@
+# Copy this file to terraform.tfvars and fill in real values.
+# terraform.tfvars is where your actual secrets go - never commit it to Git.
+
+aws_region = "us-east-1"
+
+# Your own public IP for bastion SSH access. Find it at https://whatismyip.com
+# Must end in /32 (a single IP), never leave this as 0.0.0.0/0.
+my_ip_cidr = "1.2.3.4/32"
+
+# Name of an EC2 key pair you already created in the AWS Console
+# (EC2 -> Key Pairs -> Create key pair). Used for SSH to the bastion/EC2s.
+key_pair_name = "your-key-pair-name"
+
+# Your GitHub repo containing the PHP app
+git_repo_url = "https://github.com/janicewong624/Cloud-Computing-For-Business.git"
+app_subdir   = "library-resource-scheduling"
+
+# Database
+db_username = "admin"
+db_password = "ChangeThisToYourOwnPassword123!"
+db_name     = "library_booking_db"
+
+# Check the AWS Academy Learner Lab "AWS Details" tab for the exact
+# instance profile name available to you - it's often "LabInstanceProfile"
+# but confirm before running terraform apply.
+lab_instance_profile_name = "LabInstanceProfile"
+
+# Keep these small to control cost
+web_instance_type    = "t3.micro"
+app_instance_type    = "t3.micro"
+bastion_instance_type = "t3.micro"
+db_instance_class    = "db.t3.micro"
+
+asg_min_size         = 1
+asg_desired_capacity = 2
+asg_max_size         = 4
