@@ -4,7 +4,7 @@ project_name = "library"
 short_name   = "library"
 
 # 去 https://whatismyip.com 查你自己的公網 IP，換掉下面這串，/32 一定要保留
-my_ip_cidr = "180.75.250.177/32"
+my_ip_cidr = "180.74.64.195/32"
 
 # 換成你在 EC2 Console 建的 Key Pair 名字
 key_pair_name = "Library2"

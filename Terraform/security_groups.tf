@@ -132,6 +132,15 @@ resource "aws_security_group" "database" {
     security_groups = [aws_security_group.app.id]
   }
 
+  ingress {
+    # 讓你可以從 Bastion 手動匯入/檢查資料庫，不然一開始 schema 匯入不了
+    description     = "MySQL from bastion (for manual admin/import access)"
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = [aws_security_group.bastion.id]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
