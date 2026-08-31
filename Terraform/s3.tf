@@ -3,8 +3,8 @@ resource "random_id" "bucket_suffix" {
 }
 
 resource "aws_s3_bucket" "photos" {
-  bucket = "library-photos-${random_id.bucket_suffix.hex}"
-  tags   = { Name = "library-photos" }
+  bucket = "${var.project_name}-photos-${random_id.bucket_suffix.hex}"
+  tags   = { Name = "${var.project_name}-photos" }
 }
 
 resource "aws_s3_bucket_public_access_block" "photos" {

@@ -16,7 +16,7 @@ variable "app_subdir" {
 
 # ---- Web Tier ----
 resource "aws_launch_template" "web" {
-  name_prefix   = "library-web-"
+  name_prefix   = "${var.project_name}-web-"
   image_id      = data.aws_ami.amazon_linux.id
   instance_type = var.web_instance_type
   key_name      = var.key_pair_name
@@ -40,12 +40,12 @@ resource "aws_launch_template" "web" {
 
   tag_specifications {
     resource_type = "instance"
-    tags           = { Name = "library-web" }
+    tags           = { Name = "${var.project_name}-web" }
   }
 }
 
 resource "aws_autoscaling_group" "web" {
-  name                = "library-web-asg"
+  name                = "${var.project_name}-web-asg"
   vpc_zone_identifier = [aws_subnet.web_a.id, aws_subnet.web_b.id]
   target_group_arns   = [aws_lb_target_group.web.arn]
   health_check_type   = "ELB"
@@ -61,13 +61,13 @@ resource "aws_autoscaling_group" "web" {
 
   tag {
     key                 = "Name"
-    value               = "library-web"
+    value               = "${var.project_name}-web"
     propagate_at_launch = true
   }
 }
 
 resource "aws_autoscaling_policy" "web_cpu" {
-  name                   = "library-web-cpu-scaling"
+  name                   = "${var.project_name}-web-cpu-scaling"
   autoscaling_group_name = aws_autoscaling_group.web.name
   policy_type            = "TargetTrackingScaling"
 
@@ -81,7 +81,7 @@ resource "aws_autoscaling_policy" "web_cpu" {
 
 # ---- Application Tier ----
 resource "aws_launch_template" "app" {
-  name_prefix   = "library-app-"
+  name_prefix   = "${var.project_name}-app-"
   image_id      = data.aws_ami.amazon_linux.id
   instance_type = var.app_instance_type
   key_name      = var.key_pair_name
@@ -105,12 +105,12 @@ resource "aws_launch_template" "app" {
 
   tag_specifications {
     resource_type = "instance"
-    tags           = { Name = "library-app" }
+    tags           = { Name = "${var.project_name}-app" }
   }
 }
 
 resource "aws_autoscaling_group" "app" {
-  name                = "library-app-asg"
+  name                = "${var.project_name}-app-asg"
   vpc_zone_identifier = [aws_subnet.app_a.id, aws_subnet.app_b.id]
   target_group_arns   = [aws_lb_target_group.app.arn]
   health_check_type   = "ELB"
@@ -126,13 +126,13 @@ resource "aws_autoscaling_group" "app" {
 
   tag {
     key                 = "Name"
-    value               = "library-app"
+    value               = "${var.project_name}-app"
     propagate_at_launch = true
   }
 }
 
 resource "aws_autoscaling_policy" "app_cpu" {
-  name                   = "library-app-cpu-scaling"
+  name                   = "${var.project_name}-app-cpu-scaling"
   autoscaling_group_name = aws_autoscaling_group.app.name
   policy_type            = "TargetTrackingScaling"
 
@@ -152,5 +152,5 @@ resource "aws_instance" "bastion" {
   key_name               = var.key_pair_name
   vpc_security_group_ids = [aws_security_group.bastion.id]
 
-  tags = { Name = "library-bastion" }
+  tags = { Name = "${var.project_name}-bastion" }
 }

@@ -1,15 +1,15 @@
 # ---- External ALB: User -> Internet Gateway -> here -> Web Tier ----
 resource "aws_lb" "external" {
-  name               = "library-external-alb"
+  name               = "${var.short_name}-external-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.external_alb.id]
   subnets            = [aws_subnet.public_a.id, aws_subnet.public_b.id]
-  tags               = { Name = "library-external-alb" }
+  tags               = { Name = "${var.project_name}-external-alb" }
 }
 
 resource "aws_lb_target_group" "web" {
-  name     = "library-web-tg"
+  name     = "${var.short_name}-web-tg"
   port     = 80
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
@@ -22,7 +22,7 @@ resource "aws_lb_target_group" "web" {
     timeout             = 5
   }
 
-  tags = { Name = "library-web-tg" }
+  tags = { Name = "${var.project_name}-web-tg" }
 }
 
 resource "aws_lb_listener" "external_http" {
@@ -38,16 +38,16 @@ resource "aws_lb_listener" "external_http" {
 
 # ---- Internal ALB: Web Tier -> here -> Application Tier ----
 resource "aws_lb" "internal" {
-  name               = "library-internal-alb"
+  name               = "${var.short_name}-internal-alb"
   internal           = true
   load_balancer_type = "application"
   security_groups    = [aws_security_group.internal_alb.id]
   subnets            = [aws_subnet.web_a.id, aws_subnet.web_b.id]
-  tags               = { Name = "library-internal-alb" }
+  tags               = { Name = "${var.project_name}-internal-alb" }
 }
 
 resource "aws_lb_target_group" "app" {
-  name     = "library-app-tg"
+  name     = "${var.short_name}-app-tg"
   port     = 80
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
@@ -60,7 +60,7 @@ resource "aws_lb_target_group" "app" {
     timeout             = 5
   }
 
-  tags = { Name = "library-app-tg" }
+  tags = { Name = "${var.project_name}-app-tg" }
 }
 
 resource "aws_lb_listener" "internal_http" {

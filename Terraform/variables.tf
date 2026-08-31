@@ -19,7 +19,7 @@ variable "project_name" {
 variable "short_name" {
   description = "Short name (max 19 chars) used only for ALB/Target Group names, which AWS caps at 32 characters"
   type        = string
-  default     = "library"
+  default     = "libsched"
 
   validation {
     condition     = length(var.short_name) <= 19

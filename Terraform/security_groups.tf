@@ -1,6 +1,6 @@
 # ---- External ALB: only thing allowed to accept traffic from the internet ----
 resource "aws_security_group" "external_alb" {
-  name        = "library-external-alb-sg"
+  name        = "${var.project_name}-external-alb-sg"
   description = "Allow HTTP from the internet only"
   vpc_id      = aws_vpc.main.id
 
@@ -19,12 +19,12 @@ resource "aws_security_group" "external_alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "library-external-alb-sg" }
+  tags = { Name = "${var.project_name}-external-alb-sg" }
 }
 
 # ---- Web tier EC2: only reachable from the external ALB ----
 resource "aws_security_group" "web" {
-  name        = "library-web-sg"
+  name        = "${var.project_name}-web-sg"
   description = "Allow HTTP only from the external ALB"
   vpc_id      = aws_vpc.main.id
 
@@ -51,12 +51,12 @@ resource "aws_security_group" "web" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "library-web-sg" }
+  tags = { Name = "${var.project_name}-web-sg" }
 }
 
 # ---- Internal ALB: sits between web tier and app tier, only reachable from web tier ----
 resource "aws_security_group" "internal_alb" {
-  name        = "library-internal-alb-sg"
+  name        = "${var.project_name}-internal-alb-sg"
   description = "Allow HTTP only from the web tier"
   vpc_id      = aws_vpc.main.id
 
@@ -75,12 +75,12 @@ resource "aws_security_group" "internal_alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "library-internal-alb-sg" }
+  tags = { Name = "${var.project_name}-internal-alb-sg" }
 }
 
 # ---- App tier EC2: only reachable from the internal ALB ----
 resource "aws_security_group" "app" {
-  name        = "library-appserver-sg"
+  name        = "${var.project_name}-appserver-sg"
   description = "Allow HTTP only from the internal ALB"
   vpc_id      = aws_vpc.main.id
 
@@ -107,12 +107,12 @@ resource "aws_security_group" "app" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "library-appserver-sg" }
+  tags = { Name = "${var.project_name}-appserver-sg" }
 }
 
 # ---- Database: only reachable on 3306 from the web tier and app tier ----
 resource "aws_security_group" "database" {
-  name        = "library-database-sg"
+  name        = "${var.project_name}-database-sg"
   description = "Allow MySQL only from the web/app tiers - no public access"
   vpc_id      = aws_vpc.main.id
 
@@ -139,7 +139,7 @@ resource "aws_security_group" "database" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "library-database-sg" }
+  tags = { Name = "${var.project_name}-database-sg" }
 }
 
 # ---- Bastion host: SSH from your own IP only (fill this in!) ----
@@ -149,7 +149,7 @@ variable "my_ip_cidr" {
 }
 
 resource "aws_security_group" "bastion" {
-  name        = "library-bastion-sg"
+  name        = "${var.project_name}-bastion-sg"
   description = "Allow SSH only from your own IP"
   vpc_id      = aws_vpc.main.id
 
@@ -168,5 +168,5 @@ resource "aws_security_group" "bastion" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "library-bastion-sg" }
+  tags = { Name = "${var.project_name}-bastion-sg" }
 }

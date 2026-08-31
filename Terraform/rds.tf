@@ -1,5 +1,5 @@
 resource "aws_db_instance" "main" {
-  identifier     = "library-db"
+  identifier     = "${var.project_name}-db"
   engine         = "mysql"
   engine_version = "8.0"
 
@@ -20,5 +20,5 @@ resource "aws_db_instance" "main" {
   backup_retention_period = 0    # No automated backups needed for a short-lived lab demo
   deletion_protection    = false # So `terraform destroy` can actually tear it down
 
-  tags = { Name = "library-db" }
+  tags = { Name = "${var.project_name}-db" }
 }
