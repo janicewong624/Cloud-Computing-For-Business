@@ -144,13 +144,32 @@ resource "aws_autoscaling_policy" "app_cpu" {
   }
 }
 
-# ---- Bastion host (public subnet A) ----
+# ---- Bastion host  ----
 resource "aws_instance" "bastion" {
   ami                    = data.aws_ami.amazon_linux.id
   instance_type          = var.bastion_instance_type
   subnet_id              = aws_subnet.public_a.id
   key_name               = var.key_pair_name
   vpc_security_group_ids = [aws_security_group.bastion.id]
+
+  source_dest_check = false
+
+  user_data = <<-EOF
+    #!/bin/bash
+    set -e
+    # Enable IP forwarding and NAT (masquerade) so private-subnet traffic
+    # routed here can reach the internet through this instance's ENI.
+    echo 1 > /proc/sys/net/ipv4/ip_forward
+    sysctl -w net.ipv4.ip_forward=1
+    echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
+    IFACE=$(ip route | awk '/default/ {print $5; exit}')
+    iptables -t nat -A POSTROUTING -o "$IFACE" -j MASQUERADE
+    iptables -F FORWARD
+    iptables -A FORWARD -j ACCEPT
+    # Persist the iptables rule across reboots
+    dnf install -y iptables-services || true
+    service iptables save 2>/dev/null || true
+  EOF
 
   tags = { Name = "${var.project_name}-bastion" }
 }

@@ -19,7 +19,7 @@ db_password = "Admin1234"
 db_name     = "library_booking_db"
 
 # 去 AWS Academy 的 AWS Details 標籤確認，通常是這個名字
-lab_instance_profile_name = "Lab_Library"
+lab_instance_profile_name = "LabInstanceProfile"
 
 web_instance_type     = "t3.micro"
 app_instance_type     = "t3.micro"

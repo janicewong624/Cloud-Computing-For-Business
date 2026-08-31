@@ -150,7 +150,7 @@ variable "my_ip_cidr" {
 
 resource "aws_security_group" "bastion" {
   name        = "${var.project_name}-bastion-sg"
-  description = "Allow SSH only from your own IP"
+  description = "Allow SSH only from your own IP, plus NAT traffic forwarded from the private subnets"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -159,6 +159,14 @@ resource "aws_security_group" "bastion" {
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = [var.my_ip_cidr]
+  }
+
+   ingress {
+    description = "All traffic forwarded from inside the VPC (NAT instance role)"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   egress {
