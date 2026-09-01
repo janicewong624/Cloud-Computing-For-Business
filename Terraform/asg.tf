@@ -6,68 +6,93 @@ data "aws_ami" "amazon_linux" {
     name   = "name"
     values = ["al2023-ami-*-x86_64"]
   }
-}
 
-variable "app_subdir" {
-  description = "Subfolder inside your git repo containing the PHP app (e.g. 'library-resource-scheduling' if your repo has multiple project folders)"
-  type        = string
-  default     = "library-resource-scheduling"
-}
-
-# ---- Web Tier ----
-resource "aws_launch_template" "web" {
-  name_prefix   = "${var.project_name}-web-"
-  image_id      = data.aws_ami.amazon_linux.id
-  instance_type = var.web_instance_type
-  key_name      = var.key_pair_name
-
-  iam_instance_profile {
-    name = var.lab_instance_profile_name
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
   }
+}
+
+# Referenced, never created - Academy Learner Lab accounts block new IAM
+# roles/instance profiles, so instances reuse the pre-provisioned LabRole.
+data "aws_iam_instance_profile" "lab" {
+  name = var.instance_profile_name
+}
+
+# ---------------------------------------------------------------------------
+# Web tier - pure reverse proxy, never talks to RDS.
+# ---------------------------------------------------------------------------
+resource "aws_launch_template" "web" {
+  name_prefix   = "${var.name_prefix}-web-lt-"
+  image_id      = data.aws_ami.amazon_linux.id
+  instance_type = var.instance_type
 
   vpc_security_group_ids = [aws_security_group.web.id]
 
+  iam_instance_profile {
+    name = data.aws_iam_instance_profile.lab.name
+  }
+
   user_data = base64encode(templatefile("${path.module}/user_data.sh.tpl", {
-    git_repo_url = var.git_repo_url
-    app_subdir   = var.app_subdir
-    db_host      = aws_db_instance.main.address
-    db_username  = var.db_username
-    db_password  = var.db_password
-    db_name      = var.db_name
-    s3_bucket    = aws_s3_bucket.photos.bucket
-    aws_region   = var.aws_region
+    tier             = "web"
+    app_alb_dns_name = aws_lb.app.dns_name
+    secret_arn       = aws_secretsmanager_secret.db.arn
+    aws_region       = var.aws_region
+    artifact_bucket  = aws_s3_bucket.uploads.id
+    artifact_key     = var.artifact_key
   }))
 
   tag_specifications {
     resource_type = "instance"
-    tags           = { Name = "${var.project_name}-web" }
+    tags = {
+      Name = "${var.name_prefix}-web-ec2"
+      App  = "${var.name_prefix}-library-web"
+    }
+  }
+
+  tags = {
+    Name = "${var.name_prefix}-web-lt"
   }
 }
 
 resource "aws_autoscaling_group" "web" {
-  name                = "${var.project_name}-web-asg"
-  vpc_zone_identifier = [aws_subnet.web_a.id, aws_subnet.web_b.id]
-  target_group_arns   = [aws_lb_target_group.web.arn]
-  health_check_type   = "ELB"
+  name = "${var.name_prefix}-web-asg"
 
-  min_size         = var.asg_min_size
-  desired_capacity = var.asg_desired_capacity
-  max_size         = var.asg_max_size
+  vpc_zone_identifier        = aws_subnet.web[*].id
+  min_size                   = var.web_asg_min_size
+  max_size                   = var.web_asg_max_size
+  desired_capacity           = var.web_asg_desired_capacity
+  health_check_type          = "ELB"
+  health_check_grace_period  = 300
+  target_group_arns          = [aws_lb_target_group.web.arn]
 
   launch_template {
     id      = aws_launch_template.web.id
     version = "$Latest"
   }
 
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      min_healthy_percentage = 50
+    }
+  }
+
   tag {
     key                 = "Name"
-    value               = "${var.project_name}-web"
+    value               = "${var.name_prefix}-web-asg-instance"
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "App"
+    value               = "${var.name_prefix}-library-web"
     propagate_at_launch = true
   }
 }
 
-resource "aws_autoscaling_policy" "web_cpu" {
-  name                   = "${var.project_name}-web-cpu-scaling"
+resource "aws_autoscaling_policy" "web_cpu_target_tracking" {
+  name                   = "${var.name_prefix}-web-asg-cpu-scaling"
   autoscaling_group_name = aws_autoscaling_group.web.name
   policy_type            = "TargetTrackingScaling"
 
@@ -75,64 +100,84 @@ resource "aws_autoscaling_policy" "web_cpu" {
     predefined_metric_specification {
       predefined_metric_type = "ASGAverageCPUUtilization"
     }
-    target_value = 60.0
+    target_value = 60
   }
 }
 
-# ---- Application Tier ----
+# ---------------------------------------------------------------------------
+# App tier - runs the actual PHP app, talks to RDS.
+# ---------------------------------------------------------------------------
 resource "aws_launch_template" "app" {
-  name_prefix   = "${var.project_name}-app-"
+  name_prefix   = "${var.name_prefix}-app-lt-"
   image_id      = data.aws_ami.amazon_linux.id
-  instance_type = var.app_instance_type
-  key_name      = var.key_pair_name
-
-  iam_instance_profile {
-    name = var.lab_instance_profile_name
-  }
+  instance_type = var.instance_type
 
   vpc_security_group_ids = [aws_security_group.app.id]
 
+  iam_instance_profile {
+    name = data.aws_iam_instance_profile.lab.name
+  }
+
   user_data = base64encode(templatefile("${path.module}/user_data.sh.tpl", {
-    git_repo_url = var.git_repo_url
-    app_subdir   = var.app_subdir
-    db_host      = aws_db_instance.main.address
-    db_username  = var.db_username
-    db_password  = var.db_password
-    db_name      = var.db_name
-    s3_bucket    = aws_s3_bucket.photos.bucket
-    aws_region   = var.aws_region
+    tier             = "app"
+    app_alb_dns_name = aws_lb.app.dns_name
+    secret_arn       = aws_secretsmanager_secret.db.arn
+    aws_region       = var.aws_region
+    artifact_bucket  = aws_s3_bucket.uploads.id
+    artifact_key     = var.artifact_key
   }))
 
   tag_specifications {
     resource_type = "instance"
-    tags           = { Name = "${var.project_name}-app" }
+    tags = {
+      Name = "${var.name_prefix}-app-ec2"
+      App  = "${var.name_prefix}-library-app"
+    }
+  }
+
+  tags = {
+    Name = "${var.name_prefix}-app-lt"
   }
 }
 
 resource "aws_autoscaling_group" "app" {
-  name                = "${var.project_name}-app-asg"
-  vpc_zone_identifier = [aws_subnet.app_a.id, aws_subnet.app_b.id]
-  target_group_arns   = [aws_lb_target_group.app.arn]
-  health_check_type   = "ELB"
+  name = "${var.name_prefix}-app-asg"
 
-  min_size         = var.asg_min_size
-  desired_capacity = var.asg_desired_capacity
-  max_size         = var.asg_max_size
+  vpc_zone_identifier        = aws_subnet.app[*].id
+  min_size                   = var.app_asg_min_size
+  max_size                   = var.app_asg_max_size
+  desired_capacity           = var.app_asg_desired_capacity
+  health_check_type          = "ELB"
+  health_check_grace_period  = 300
+  target_group_arns          = [aws_lb_target_group.app.arn]
 
   launch_template {
     id      = aws_launch_template.app.id
     version = "$Latest"
   }
 
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      min_healthy_percentage = 50
+    }
+  }
+
   tag {
     key                 = "Name"
-    value               = "${var.project_name}-app"
+    value               = "${var.name_prefix}-app-asg-instance"
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "App"
+    value               = "${var.name_prefix}-library-app"
     propagate_at_launch = true
   }
 }
 
-resource "aws_autoscaling_policy" "app_cpu" {
-  name                   = "${var.project_name}-app-cpu-scaling"
+resource "aws_autoscaling_policy" "app_cpu_target_tracking" {
+  name                   = "${var.name_prefix}-app-asg-cpu-scaling"
   autoscaling_group_name = aws_autoscaling_group.app.name
   policy_type            = "TargetTrackingScaling"
 
@@ -140,36 +185,24 @@ resource "aws_autoscaling_policy" "app_cpu" {
     predefined_metric_specification {
       predefined_metric_type = "ASGAverageCPUUtilization"
     }
-    target_value = 60.0
+    target_value = 60
   }
 }
 
-# ---- Bastion host  ----
+# ---------------------------------------------------------------------------
+# Bastion host - single EC2 in Public Subnet 1, SSH jump box into the
+# Web/App tiers. Not part of the app's traffic path.
+# ---------------------------------------------------------------------------
 resource "aws_instance" "bastion" {
-  ami                    = data.aws_ami.amazon_linux.id
-  instance_type          = var.bastion_instance_type
-  subnet_id              = aws_subnet.public_a.id
-  key_name               = var.key_pair_name
-  vpc_security_group_ids = [aws_security_group.bastion.id]
+  ami                         = data.aws_ami.amazon_linux.id
+  instance_type               = "t3.micro"
+  subnet_id                   = aws_subnet.public[0].id
+  vpc_security_group_ids      = [aws_security_group.bastion.id]
+  associate_public_ip_address = true
+  key_name                    = var.key_name
+  iam_instance_profile        = data.aws_iam_instance_profile.lab.name
 
-  source_dest_check = false
-
-  user_data = <<-EOF
-    #!/bin/bash
-    set -e
-    # Enable IP forwarding and NAT (masquerade) so private-subnet traffic
-    # routed here can reach the internet through this instance's ENI.
-    echo 1 > /proc/sys/net/ipv4/ip_forward
-    sysctl -w net.ipv4.ip_forward=1
-    echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
-    IFACE=$(ip route | awk '/default/ {print $5; exit}')
-    iptables -t nat -A POSTROUTING -o "$IFACE" -j MASQUERADE
-    iptables -F FORWARD
-    iptables -A FORWARD -j ACCEPT
-    # Persist the iptables rule across reboots
-    dnf install -y iptables-services || true
-    service iptables save 2>/dev/null || true
-  EOF
-
-  tags = { Name = "${var.project_name}-bastion" }
+  tags = {
+    Name = "${var.name_prefix}-bastion"
+  }
 }

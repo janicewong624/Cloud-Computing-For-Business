@@ -1,144 +1,158 @@
-data "aws_availability_zones" "available" {
-  state = "available"
-}
+data "aws_region" "current" {}
 
-locals {
-  az_a = data.aws_availability_zones.available.names[0]
-  az_b = data.aws_availability_zones.available.names[1]
-}
-
-resource "aws_vpc" "main" {
+resource "aws_vpc" "this" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
 
-  tags = { Name = "${var.project_name}-vpc" }
+  tags = {
+    Name = "${var.name_prefix}-vpc"
+  }
 }
 
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
-  tags   = { Name = "${var.project_name}-igw" }
+resource "aws_internet_gateway" "this" {
+  vpc_id = aws_vpc.this.id
+
+  tags = {
+    Name = "${var.name_prefix}-igw"
+  }
 }
 
-# ---- Public subnets (AZ-a / AZ-b) - only the NAT Gateway + bastion host live here ----
-resource "aws_subnet" "public_a" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.0.0/20"
-  availability_zone       = local.az_a
+# ---------------------------------------------------------------------------
+# Subnets - matches the diagram exactly: 2 public + 3 private tiers (web/app/
+# database) x 2 AZs = 8 subnets total.
+# ---------------------------------------------------------------------------
+resource "aws_subnet" "public" {
+  count                   = length(var.public_subnet_cidrs)
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.public_subnet_cidrs[count.index]
+  availability_zone       = var.azs[count.index % length(var.azs)]
   map_public_ip_on_launch = true
-  tags                    = { Name = "${var.project_name}-public-1a" }
+
+  tags = {
+    Name = "${var.name_prefix}-public-subnet-${count.index + 1}"
+  }
 }
 
-resource "aws_subnet" "public_b" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.16.0/20"
-  availability_zone       = local.az_b
-  map_public_ip_on_launch = true
-  tags                    = { Name = "${var.project_name}-public-2b" }
+resource "aws_subnet" "web" {
+  count                   = length(var.web_subnet_cidrs)
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.web_subnet_cidrs[count.index]
+  availability_zone       = var.azs[count.index % length(var.azs)]
+  map_public_ip_on_launch = false
+
+  tags = {
+    Name = "${var.name_prefix}-private-web-subnet-${count.index + 1}"
+  }
 }
 
-# ---- Private subnets: Web Tier (AZ-a / AZ-b) ----
-resource "aws_subnet" "web_a" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.32.0/20"
-  availability_zone = local.az_a
-  tags              = { Name = "${var.project_name}-private-web-3a" }
+resource "aws_subnet" "app" {
+  count                   = length(var.app_subnet_cidrs)
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.app_subnet_cidrs[count.index]
+  availability_zone       = var.azs[count.index % length(var.azs)]
+  map_public_ip_on_launch = false
+
+  tags = {
+    Name = "${var.name_prefix}-private-app-subnet-${count.index + 1}"
+  }
 }
 
-resource "aws_subnet" "web_b" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.48.0/20"
-  availability_zone = local.az_b
-  tags              = { Name = "${var.project_name}-private-web-4b" }
+resource "aws_subnet" "db" {
+  count                   = length(var.db_subnet_cidrs)
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.db_subnet_cidrs[count.index]
+  availability_zone       = var.azs[count.index % length(var.azs)]
+  map_public_ip_on_launch = false
+
+  tags = {
+    Name = "${var.name_prefix}-private-db-subnet-${count.index + 1}"
+  }
 }
 
-# ---- Private subnets: Application Tier (AZ-a / AZ-b) ----
-resource "aws_subnet" "app_a" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.64.0/20"
-  availability_zone = local.az_a
-  tags              = { Name = "${var.project_name}-private-app-5a" }
-}
-
-resource "aws_subnet" "app_b" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.80.0/20"
-  availability_zone = local.az_b
-  tags              = { Name = "${var.project_name}-private-app-6b" }
-}
-
-# ---- Private subnets: Database Tier - RDS only lives in AZ-a (single-AZ) ----
-resource "aws_subnet" "db_a" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.160.0/20"
-  availability_zone = local.az_a
-  tags              = { Name = "${var.project_name}-private-db-7a" }
-}
-
-resource "aws_subnet" "db_b" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.176.0/20"
-  availability_zone = local.az_b
-  tags              = { Name = "${var.project_name}-private-db-8b" }
-}
-
-# RDS still needs a subnet *group* spanning 2 AZs even in Single-AZ mode -
-# AWS requires this in case you switch to Multi-AZ later.
-resource "aws_db_subnet_group" "main" {
-  name       = "${var.project_name}-db-subnet-group"
-  subnet_ids = [aws_subnet.db_a.id, aws_subnet.db_b.id]
-  tags       = { Name = "${var.project_name}-db-subnet-group" }
-}
-
-# ---- Route tables ----
+# ---------------------------------------------------------------------------
+# Routing - public subnets get an IGW route (for the external ALB + bastion).
+# Private subnets (web/app/db) get NO internet route at all - no NAT Gateway.
+# Everything they need reaches them via VPC Endpoints instead (below).
+# ---------------------------------------------------------------------------
 resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
+  vpc_id = aws_vpc.this.id
+
+  tags = {
+    Name = "${var.name_prefix}-public-rt"
   }
-  tags = { Name = "${var.project_name}-public-rtb" }
 }
 
-resource "aws_route_table_association" "public_a" {
-  subnet_id      = aws_subnet.public_a.id
-  route_table_id = aws_route_table.public.id
+resource "aws_route" "public_internet" {
+  route_table_id         = aws_route_table.public.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.this.id
 }
-resource "aws_route_table_association" "public_b" {
-  subnet_id      = aws_subnet.public_b.id
+
+resource "aws_route_table_association" "public" {
+  count          = length(aws_subnet.public)
+  subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
 }
 
+# Private RT has no 0.0.0.0/0 route - kept only so web/app/db subnets share
+# one table (and so the S3 Gateway Endpoint below can attach to it).
 resource "aws_route_table" "private" {
-  vpc_id = aws_vpc.main.id
-  route {
-    cidr_block           = "0.0.0.0/0"
-    network_interface_id = aws_instance.bastion.primary_network_interface_id
+  vpc_id = aws_vpc.this.id
+
+  tags = {
+    Name = "${var.name_prefix}-private-rt"
   }
-  tags = { Name = "${var.project_name}-private-rtb" }
 }
 
-resource "aws_route_table_association" "web_a" {
-  subnet_id      = aws_subnet.web_a.id
+resource "aws_route_table_association" "web" {
+  count          = length(aws_subnet.web)
+  subnet_id      = aws_subnet.web[count.index].id
   route_table_id = aws_route_table.private.id
 }
-resource "aws_route_table_association" "web_b" {
-  subnet_id      = aws_subnet.web_b.id
+
+resource "aws_route_table_association" "app" {
+  count          = length(aws_subnet.app)
+  subnet_id      = aws_subnet.app[count.index].id
   route_table_id = aws_route_table.private.id
 }
-resource "aws_route_table_association" "app_a" {
-  subnet_id      = aws_subnet.app_a.id
+
+resource "aws_route_table_association" "db" {
+  count          = length(aws_subnet.db)
+  subnet_id      = aws_subnet.db[count.index].id
   route_table_id = aws_route_table.private.id
 }
-resource "aws_route_table_association" "app_b" {
-  subnet_id      = aws_subnet.app_b.id
-  route_table_id = aws_route_table.private.id
+
+# ---------------------------------------------------------------------------
+# VPC Endpoints - replace the NAT Gateway entirely for what the private
+# tiers actually need.
+# ---------------------------------------------------------------------------
+
+# S3 Gateway Endpoint (free, no ENI) - covers BOTH Amazon Linux's S3-backed
+# dnf/yum repos AND the App tier's `aws s3 cp`/`head-object` calls against
+# the uploads bucket. No NAT needed for either.
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.this.id
+  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.public.id, aws_route_table.private.id]
+
+  tags = {
+    Name = "${var.name_prefix}-s3-endpoint"
+  }
 }
-resource "aws_route_table_association" "db_a" {
-  subnet_id      = aws_subnet.db_a.id
-  route_table_id = aws_route_table.private.id
-}
-resource "aws_route_table_association" "db_b" {
-  subnet_id      = aws_subnet.db_b.id
-  route_table_id = aws_route_table.private.id
+
+# Secrets Manager Interface Endpoint - the ONE AWS API call the App tier
+# makes that S3 doesn't cover (fetching the DB password at boot).
+resource "aws_vpc_endpoint" "secretsmanager" {
+  vpc_id              = aws_vpc.this.id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.secretsmanager"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.app[*].id
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name = "${var.name_prefix}-secretsmanager-endpoint"
+  }
 }

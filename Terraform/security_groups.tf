@@ -1,11 +1,12 @@
-# ---- External ALB: only thing allowed to accept traffic from the internet ----
-resource "aws_security_group" "external_alb" {
-  name        = "${var.project_name}-external-alb-sg"
-  description = "Allow HTTP from the internet only"
-  vpc_id      = aws_vpc.main.id
+# assignment-sg-alb: the only SG allowed to receive traffic from the public
+# internet. Fronts the external (Web tier) ALB.
+resource "aws_security_group" "alb" {
+  name        = "${var.name_prefix}-sg-alb"
+  description = "Allow inbound HTTP from the internet to the public ALB"
+  vpc_id      = aws_vpc.this.id
 
   ingress {
-    description = "HTTP from anywhere"
+    description = "HTTP from internet"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -19,25 +20,55 @@ resource "aws_security_group" "external_alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.project_name}-external-alb-sg" }
+  tags = {
+    Name = "${var.name_prefix}-sg-alb"
+  }
 }
 
-# ---- Web tier EC2: only reachable from the external ALB ----
+# bastion-sg: the only SG allowed to SSH in from the internet, scoped to a
+# single known IP. Diagram's bastion host in Public Subnet 1.
+resource "aws_security_group" "bastion" {
+  name        = "${var.name_prefix}-bastion-sg"
+  description = "Allow SSH from the operator's IP only"
+  vpc_id      = aws_vpc.this.id
+
+  ingress {
+    description = "SSH from the operator's IP"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.bastion_allowed_cidr]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.name_prefix}-bastion-sg"
+  }
+}
+
+# web-sg: Web tier EC2 instances. HTTP only from the public ALB; SSH only
+# from the bastion host.
 resource "aws_security_group" "web" {
-  name        = "${var.project_name}-web-sg"
-  description = "Allow HTTP only from the external ALB"
-  vpc_id      = aws_vpc.main.id
+  name        = "${var.name_prefix}-web-sg"
+  description = "Web tier: HTTP from the public ALB only, SSH from the bastion only"
+  vpc_id      = aws_vpc.this.id
 
   ingress {
-    description     = "HTTP from external ALB"
+    description     = "HTTP from the public ALB only"
     from_port       = 80
     to_port         = 80
     protocol        = "tcp"
-    security_groups = [aws_security_group.external_alb.id]
+    security_groups = [aws_security_group.alb.id]
   }
 
   ingress {
-    description     = "SSH from bastion host only"
+    description     = "SSH from the bastion host only"
     from_port       = 22
     to_port         = 22
     protocol        = "tcp"
@@ -51,49 +82,28 @@ resource "aws_security_group" "web" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.project_name}-web-sg" }
+  tags = {
+    Name = "${var.name_prefix}-web-sg"
+  }
 }
 
-# ---- Internal ALB: sits between web tier and app tier, only reachable from web tier ----
-resource "aws_security_group" "internal_alb" {
-  name        = "${var.project_name}-internal-alb-sg"
-  description = "Allow HTTP only from the web tier"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description     = "HTTP from web tier"
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
-    security_groups = [aws_security_group.web.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.project_name}-internal-alb-sg" }
-}
-
-# ---- App tier EC2: only reachable from the internal ALB ----
+# app-sg: App tier EC2 instances (and the internal ALB in front of them).
+# HTTP only from the Web tier; SSH only from the bastion.
 resource "aws_security_group" "app" {
-  name        = "${var.project_name}-appserver-sg"
-  description = "Allow HTTP only from the internal ALB"
-  vpc_id      = aws_vpc.main.id
+  name        = "${var.name_prefix}-app-sg"
+  description = "App tier: HTTP from the Web tier only, SSH from the bastion only"
+  vpc_id      = aws_vpc.this.id
 
   ingress {
-    description     = "HTTP from internal ALB"
+    description     = "HTTP from the Web tier only"
     from_port       = 80
     to_port         = 80
     protocol        = "tcp"
-    security_groups = [aws_security_group.internal_alb.id]
+    security_groups = [aws_security_group.web.id]
   }
 
   ingress {
-    description     = "SSH from bastion host only"
+    description     = "SSH from the bastion host only"
     from_port       = 22
     to_port         = 22
     protocol        = "tcp"
@@ -107,38 +117,50 @@ resource "aws_security_group" "app" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.project_name}-appserver-sg" }
+  tags = {
+    Name = "${var.name_prefix}-app-sg"
+  }
 }
 
-# ---- Database: only reachable on 3306 from the web tier and app tier ----
+# database-sg: RDS. MySQL only from the App tier.
 resource "aws_security_group" "database" {
-  name        = "${var.project_name}-database-sg"
-  description = "Allow MySQL only from the web/app tiers - no public access"
-  vpc_id      = aws_vpc.main.id
+  name        = "${var.name_prefix}-database-sg"
+  description = "Database tier: MySQL from the App tier only"
+  vpc_id      = aws_vpc.this.id
 
   ingress {
-    description     = "MySQL from web tier"
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.web.id]
-  }
-
-  ingress {
-    description     = "MySQL from app tier"
+    description     = "MySQL from the App tier only"
     from_port       = 3306
     to_port         = 3306
     protocol        = "tcp"
     security_groups = [aws_security_group.app.id]
   }
 
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.name_prefix}-database-sg"
+  }
+}
+
+# vpc-endpoints-sg: allows the App tier to reach the Secrets Manager
+# Interface Endpoint's ENI over HTTPS. Nothing else needs to talk to it.
+resource "aws_security_group" "vpc_endpoints" {
+  name        = "${var.name_prefix}-vpc-endpoints-sg"
+  description = "Allow HTTPS from the App tier to the Secrets Manager interface endpoint"
+  vpc_id      = aws_vpc.this.id
+
   ingress {
-    # 讓你可以從 Bastion 手動匯入/檢查資料庫，不然一開始 schema 匯入不了
-    description     = "MySQL from bastion (for manual admin/import access)"
-    from_port       = 3306
-    to_port         = 3306
+    description     = "HTTPS from the App tier only"
+    from_port       = 443
+    to_port         = 443
     protocol        = "tcp"
-    security_groups = [aws_security_group.bastion.id]
+    security_groups = [aws_security_group.app.id]
   }
 
   egress {
@@ -148,42 +170,7 @@ resource "aws_security_group" "database" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.project_name}-database-sg" }
-}
-
-# ---- Bastion host: SSH from your own IP only (fill this in!) ----
-variable "my_ip_cidr" {
-  description = "Your own public IP in CIDR form (e.g. 1.2.3.4/32) - find it at whatismyip.com. Never leave this as 0.0.0.0/0."
-  type        = string
-}
-
-resource "aws_security_group" "bastion" {
-  name        = "${var.project_name}-bastion-sg"
-  description = "Allow SSH only from your own IP, plus NAT traffic forwarded from the private subnets"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "SSH from my IP only"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.my_ip_cidr]
+  tags = {
+    Name = "${var.name_prefix}-vpc-endpoints-sg"
   }
-
-   ingress {
-    description = "All traffic forwarded from inside the VPC (NAT instance role)"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = [var.vpc_cidr]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.project_name}-bastion-sg" }
 }

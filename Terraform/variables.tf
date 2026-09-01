@@ -1,114 +1,128 @@
 variable "aws_region" {
-  description = "AWS region to deploy into"
+  description = "AWS region for all resources."
   type        = string
   default     = "us-east-1"
 }
 
-variable "project_name" {
-  description = "Short name used to prefix/tag most resources (VPC, subnets, security groups, RDS, EC2 tags). No strict length limit here."
+variable "name_prefix" {
+  description = "Prefix applied to every resource name, per the assignment-{resource} convention."
   type        = string
-  default     = "library-resource-scheduling"
-}
-
-# AWS hard-limits Application Load Balancer names and Target Group names to
-# 32 characters - project_name above (28 chars) is already too long once you
-# add a suffix like "-external-alb" (13 chars = 41 total, which AWS
-# rejects). This separate, short variable is used ONLY for the ALB and
-# Target Group names so you can keep project_name long/descriptive
-# everywhere else. Keep this at 19 characters or fewer.
-variable "short_name" {
-  description = "Short name (max 19 chars) used only for ALB/Target Group names, which AWS caps at 32 characters"
-  type        = string
-  default     = "libsched"
-
-  validation {
-    condition     = length(var.short_name) <= 19
-    error_message = "short_name must be 19 characters or fewer so '<short_name>-external-alb' stays under AWS's 32-character ALB name limit."
-  }
+  default     = "assignment"
 }
 
 variable "vpc_cidr" {
-  description = "CIDR block for the VPC"
-  type        = string
-  default     = "10.0.0.0/16"
+  type    = string
+  default = "10.0.0.0/16"
 }
 
-# AWS Academy Learner Lab accounts almost always only have a pre-existing
-# role called "LabInstanceProfile" or "LabRole" available for EC2 - you
-# cannot create new IAM roles yourself. Check your lab's "AWS Details" tab
-# for the exact name and override it in terraform.tfvars if different.
-variable "lab_instance_profile_name" {
-  description = "Existing IAM instance profile name available in the Learner Lab account"
+variable "azs" {
+  description = "Availability zones to spread subnets across - matches the diagram's us-east-1a / us-east-1b."
+  type        = list(string)
+  default     = ["us-east-1a", "us-east-1b"]
+}
+
+# CIDRs below match the diagram's subnet numbering exactly (Public Subnet
+# 1/2, Private Subnet 3/4 = web, 5/6 = app, 7/8 = database).
+variable "public_subnet_cidrs" {
+  type    = list(string)
+  default = ["10.0.0.0/20", "10.0.16.0/20"]
+}
+
+variable "web_subnet_cidrs" {
+  type    = list(string)
+  default = ["10.0.32.0/20", "10.0.48.0/20"]
+}
+
+variable "app_subnet_cidrs" {
+  type    = list(string)
+  default = ["10.0.64.0/20", "10.0.80.0/20"]
+}
+
+variable "db_subnet_cidrs" {
+  type    = list(string)
+  default = ["10.0.160.0/20", "10.0.176.0/20"]
+}
+
+variable "instance_type" {
+  description = "EC2 instance type for Web/App tier instances. Bump this later if t3.micro is insufficient - no other changes needed."
+  type        = string
+  default     = "t3.micro"
+}
+
+variable "instance_profile_name" {
+  description = "Existing AWS Academy IAM instance profile (cannot create a new one in a Learner Lab account)."
   type        = string
   default     = "LabInstanceProfile"
 }
 
-variable "key_pair_name" {
-  description = "Name of an existing EC2 key pair (for SSH via the bastion host). Create one in the EC2 console first if you don't have one."
+variable "bastion_allowed_cidr" {
+  description = "Your IP allowed to SSH into the bastion, e.g. \"203.0.113.4/32\". Find yours with `curl ifconfig.me`. Never leave this as 0.0.0.0/0."
   type        = string
 }
 
-variable "web_instance_type" {
-  description = "Instance type for the Web Tier ASG"
+variable "key_name" {
+  description = "Name of an existing EC2 key pair (create one first: EC2 console -> Key Pairs -> Create) used to SSH into the bastion."
   type        = string
-  default     = "t3.micro"
-}
-
-variable "app_instance_type" {
-  description = "Instance type for the Application Tier ASG"
-  type        = string
-  default     = "t3.micro"
-}
-
-variable "bastion_instance_type" {
-  description = "Instance type for the bastion host"
-  type        = string
-  default     = "t3.micro"
-}
-
-variable "db_instance_class" {
-  description = "RDS instance class"
-  type        = string
-  default     = "db.t3.micro"
 }
 
 variable "db_name" {
-  description = "Initial database name"
-  type        = string
-  default     = "library_booking_db"
+  type    = string
+  default = "library_booking_db"
 }
 
 variable "db_username" {
-  description = "Master username for RDS"
+  type    = string
+  default = "admin"
+}
+
+variable "secret_name" {
+  type    = string
+  default = "assignment-db-credentials"
+}
+
+variable "s3_bucket_name" {
+  description = "Globally-unique bucket name prefix for room/equipment/book photo uploads and app release artifacts. The account ID is appended automatically in s3.tf."
   type        = string
-  default     = "admin"
+  default     = "assignment-s3-uploads"
 }
 
-variable "db_password" {
-  description = "Master password for RDS - set this in terraform.tfvars, never commit it"
+variable "artifact_key" {
+  description = "S3 object key that holds the app release zip, pulled by App tier instances at boot."
   type        = string
-  sensitive   = true
+  default     = "artifacts/assignment-app.zip"
 }
 
-variable "git_repo_url" {
-  description = "HTTPS URL of your GitHub repo containing the library-resource-scheduling app"
-  type        = string
+variable "health_check_path" {
+  type    = string
+  default = "/healthz.php"
 }
 
-variable "asg_min_size" {
-  description = "Minimum instances per tier's ASG"
-  type        = number
-  default     = 1
+variable "web_asg_min_size" {
+  type    = number
+  default = 2
 }
 
-variable "asg_desired_capacity" {
-  description = "Desired instances per tier's ASG"
-  type        = number
-  default     = 2
+variable "web_asg_max_size" {
+  type    = number
+  default = 4
 }
 
-variable "asg_max_size" {
-  description = "Maximum instances per tier's ASG"
-  type        = number
-  default     = 4
+variable "web_asg_desired_capacity" {
+  type    = number
+  default = 2
+}
+
+variable "app_asg_min_size" {
+  type    = number
+  default = 2
+}
+
+variable "app_asg_max_size" {
+  type    = number
+  default = 4
+}
+
+variable "app_asg_desired_capacity" {
+  type    = number
+  default = 2
 }
