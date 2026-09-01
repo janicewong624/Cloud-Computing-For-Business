@@ -28,7 +28,7 @@ terraform {
   # your own (e.g. assignment-tfstate-<your-account-id>, find it with
   # `aws sts get-caller-identity`) and create it with that exact name first.
   backend "s3" {
-    bucket         = "library" # <-- change this
+    bucket         = "assignment-tfstate-219533466732" # <-- change this
     key            = "sandbox/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "assignment-tf-lock"
