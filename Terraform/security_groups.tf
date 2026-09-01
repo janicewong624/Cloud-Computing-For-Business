@@ -29,11 +29,11 @@ resource "aws_security_group" "alb" {
 # single known IP. Diagram's bastion host in Public Subnet 1.
 resource "aws_security_group" "bastion" {
   name        = "${var.name_prefix}-bastion-sg"
-  description = "Allow SSH from the operator's IP only"
+  description = "Allow SSH from the operator IP only"
   vpc_id      = aws_vpc.this.id
 
   ingress {
-    description = "SSH from the operator's IP"
+    description = "SSH from the operator IP"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"

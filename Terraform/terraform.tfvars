@@ -1,5 +1,5 @@
 aws_region  = "us-east-1"
-name_prefix = "Library_System"
+name_prefix = "library-system"
 
 # REQUIRED - fill these in before `terraform apply`:
 bastion_allowed_cidr = "27.125.246.17/32" # run `curl ifconfig.me`, append /32
