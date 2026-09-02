@@ -18,7 +18,7 @@ variable "my_ip" {
 
 variable "db_password" {
   type        = string
-  default     = "AdminPass12345!"
+  default     = "admin1234"
   sensitive   = true
   description = "Master password for RDS"
 }
@@ -27,4 +27,10 @@ variable "ami_id" {
   type        = string
   default     = "ami-0c7217cdde317cfec" # 替换为你目标 Region 的 Amazon Linux AMI
   description = "AMI ID for EC2 Launch Template"
+}
+
+variable "key_name" {
+  type        = string
+  default     = "Library2"
+  description = "Name of the existing EC2 Key Pair for SSH access"
 }

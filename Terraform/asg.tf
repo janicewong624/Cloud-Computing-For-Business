@@ -32,6 +32,7 @@ resource "aws_launch_template" "app_lt" {
   name_prefix   = "app-launch-template-"
   image_id      = var.ami_id
   instance_type = "t3.micro"
+  key_name = "Library2"
 
   network_interfaces {
     associate_public_ip_address = false
