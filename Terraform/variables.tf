@@ -12,7 +12,7 @@ variable "vpc_cidr" {
 
 variable "my_ip" {
   type        = string
-  default     = "0.0.0.0/0" # 建议在 tfvars 中替换为你的本地真实 IP/32
+  default     = "180.75.249.84/0" # 建议在 tfvars 中替换为你的本地真实 IP/32
   description = "Your public IP for SSH access"
 }
 

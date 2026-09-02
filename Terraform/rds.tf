@@ -1,6 +1,6 @@
 # AWS Secrets Manager
 resource "aws_secretsmanager_secret" "db_secret" {
-  name                    = "db-credentials-v3"
+  name                    = "db-library-v3"
   recovery_window_in_days = 0
 }
 

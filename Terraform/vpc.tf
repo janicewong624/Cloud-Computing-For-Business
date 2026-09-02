@@ -4,12 +4,12 @@ resource "aws_vpc" "main" {
   enable_dns_hostnames = true
   enable_dns_support   = true
 
-  tags = { Name = "assignment-vpc" }
+  tags = { Name = "library-vpc" }
 }
 
 resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.main.id
-  tags   = { Name = "assignment-igw" }
+  tags   = { Name = "library-igw" }
 }
 
 # Public Subnets (For ALB & Bastion)
