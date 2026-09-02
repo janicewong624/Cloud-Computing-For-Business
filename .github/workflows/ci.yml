@@ -1,0 +1,32 @@
+name: "CI - Full Pipeline"
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "What to do: plan (preview infra only), deploy (apply infra + ship app code), destroy (tear everything down)"
+        required: true
+        default: "plan"
+        type: choice
+        options: [plan, deploy, destroy]
+      ref:
+        description: "Branch/tag/commit to deploy (only used when mode=deploy)"
+        required: false
+        default: "main"
+
+jobs:
+  plan-or-destroy:
+    name: Infra only (plan/destroy)
+    if: inputs.mode == 'plan' || inputs.mode == 'destroy'
+    uses: ./.github/workflows/build.yml
+    with:
+      action: ${{ inputs.mode }}
+    secrets: inherit
+
+  deploy:
+    name: Deploy (infra + app)
+    if: inputs.mode == 'deploy'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ref: ${{ inputs.ref }}
+    secrets: inherit

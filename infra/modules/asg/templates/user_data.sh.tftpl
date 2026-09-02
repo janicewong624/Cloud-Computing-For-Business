@@ -1,0 +1,57 @@
+#!/bin/bash
+set -euxo pipefail
+
+dnf update -y
+dnf install -y httpd php php-mysqlnd php-cli jq unzip mariadb105
+
+# Pull DB connection details from Secrets Manager using this instance's IAM
+# role - no credentials are ever hardcoded here.
+SECRET_JSON=$(aws secretsmanager get-secret-value \
+  --secret-id "${secret_arn}" \
+  --region "${aws_region}" \
+  --query SecretString --output text)
+
+DB_HOST=$(echo "$SECRET_JSON" | jq -r .host)
+DB_USER=$(echo "$SECRET_JSON" | jq -r .username)
+DB_PASS=$(echo "$SECRET_JSON" | jq -r .password)
+DB_NAME=$(echo "$SECRET_JSON" | jq -r .dbname)
+
+# Variable names here match what config.php actually reads via getenv() -
+# DB_HOST/DB_USER/DB_PASS/DB_NAME and AWS_S3_BUCKET/AWS_S3_REGION. No
+# AWS_ACCESS_KEY_ID/SECRET are set here on purpose: helpers.php's
+# s3_get_credentials() falls back to the EC2 instance metadata service (IMDS)
+# and picks up this instance's IAM role automatically, which is more secure
+# than passing any keys through user-data.
+cat <<EOF > /etc/httpd/conf.d/library-booking-env.conf
+SetEnv DB_HOST "$DB_HOST"
+SetEnv DB_USER "$DB_USER"
+SetEnv DB_PASS "$DB_PASS"
+SetEnv DB_NAME "$DB_NAME"
+SetEnv AWS_S3_BUCKET "${s3_bucket}"
+SetEnv AWS_S3_REGION "${aws_region}"
+EOF
+
+mkdir -p /var/www/html
+
+# Self-healing deploy: every new/replaced instance (scale-out, instance
+# refresh, terraform apply after a destroy, etc.) pulls whatever was last
+# shipped by the deploy.yml workflow, so the fleet never drifts back to the
+# placeholder page after the first real deploy. Falls back to a placeholder
+# only before any deploy has ever run.
+if aws s3api head-object --bucket "${s3_bucket}" --key "${artifact_key}" --region "${aws_region}" >/dev/null 2>&1; then
+  aws s3 cp "s3://${s3_bucket}/${artifact_key}" /tmp/library-booking-app.zip --region "${aws_region}"
+  rm -rf /var/www/html/*
+  unzip -o /tmp/library-booking-app.zip -d /var/www/html
+else
+  echo "<?php http_response_code(200); echo 'library-resource-scheduling: bootstrapped, waiting for first deploy.';" \
+    > /var/www/html/index.php
+  # Matches healthz.php's contract but skips the real DB check (config.php
+  # isn't deployed yet) so the ALB target group already sees this instance as
+  # healthy before the first real deploy, instead of looping on unhealthy.
+  echo "<?php http_response_code(200); header('Content-Type: text/plain'); echo 'OK';" \
+    > /var/www/html/healthz.php
+fi
+
+chown -R apache:apache /var/www/html
+systemctl enable httpd
+systemctl restart httpd
