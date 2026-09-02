@@ -1,9 +1,15 @@
-resource "aws_security_group" "alb_sg" {
-  name        = "alb-sg"
+# ---------------------------------------------------------------------------
+# ALB security group - the ONLY thing allowed to accept traffic from
+# Anywhere-IPv4, and only on HTTP (80).
+# ---------------------------------------------------------------------------
+
+resource "aws_security_group" "alb" {
+  name        = "${var.project_name}-alb-sg"
+  description = "Allow HTTP from the internet"
   vpc_id      = aws_vpc.main.id
-  description = "Allow HTTP inbound from anywhere"
 
   ingress {
+    description = "HTTP from anywhere"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -16,45 +22,38 @@ resource "aws_security_group" "alb_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-}
 
-resource "aws_security_group" "bastion_sg" {
-  name        = "bastion-sg"
-  vpc_id      = aws_vpc.main.id
-  description = "Allow SSH from specific IP"
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.my_ip]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  tags = {
+    Name = "${var.project_name}-alb-sg"
   }
 }
 
-resource "aws_security_group" "ec2_sg" {
-  name        = "ec2-sg"
+# ---------------------------------------------------------------------------
+# EC2 security group - HTTP only from the ALB, SSH only from your own IP
+# (SSH is only ever used against the temporary build instance; the ASG's
+# private instances aren't reachable by SSH at all since they have no
+# public IP - use SSM Session Manager if you need a shell on them).
+# ---------------------------------------------------------------------------
+
+resource "aws_security_group" "ec2" {
+  name        = "${var.project_name}-ec2-sg"
+  description = "Allow HTTP from the ALB only, SSH from my IP only"
   vpc_id      = aws_vpc.main.id
-  description = "Allow traffic only from ALB and Bastion"
 
   ingress {
+    description     = "HTTP from ALB"
     from_port       = 80
     to_port         = 80
     protocol        = "tcp"
-    security_groups = [aws_security_group.alb_sg.id]
+    security_groups = [aws_security_group.alb.id]
   }
 
   ingress {
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    security_groups = [aws_security_group.bastion_sg.id]
+    description = "SSH from my IP only (build instance)"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.my_ip_cidr]
   }
 
   egress {
@@ -62,19 +61,29 @@ resource "aws_security_group" "ec2_sg" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project_name}-ec2-sg"
   }
 }
 
-resource "aws_security_group" "rds_sg" {
-  name        = "rds-sg"
+# ---------------------------------------------------------------------------
+# RDS security group - MySQL/Aurora (3306) only from the EC2 security group,
+# never a CIDR block.
+# ---------------------------------------------------------------------------
+
+resource "aws_security_group" "rds" {
+  name        = "${var.project_name}-rds-sg"
+  description = "Allow MySQL/Aurora from EC2 instances only"
   vpc_id      = aws_vpc.main.id
-  description = "Allow MySQL only from EC2"
 
   ingress {
+    description     = "MySQL from EC2 SG"
     from_port       = 3306
     to_port         = 3306
     protocol        = "tcp"
-    security_groups = [aws_security_group.ec2_sg.id]
+    security_groups = [aws_security_group.ec2.id]
   }
 
   egress {
@@ -82,5 +91,9 @@ resource "aws_security_group" "rds_sg" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project_name}-rds-sg"
   }
 }
