@@ -1,0 +1,56 @@
+name: "DB - Seed Database"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    name: Seed library_booking_db (safe to re-run - no-op if already seeded)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (Learner Lab)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+
+      - name: Get S3 bucket name from Terraform output
+        id: tf-output
+        working-directory: infra/envs/sandbox
+        run: |
+          terraform init -input=false
+          echo "bucket=$(terraform output -raw s3_bucket_name)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload schema.sql + seed-db.sh to S3
+        run: |
+          aws s3 cp schema.sql "s3://${{ steps.tf-output.outputs.bucket }}/db-init/schema.sql"
+          aws s3 cp infra/scripts/seed-db.sh "s3://${{ steps.tf-output.outputs.bucket }}/db-init/seed-db.sh"
+
+      - name: Run seed-db.sh on a running instance via SSM
+        run: |
+          BUCKET="${{ steps.tf-output.outputs.bucket }}"
+          COMMAND_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=tag:App,Values=assignment-library-booking" \
+            --comment "Seed library_booking_db" \
+            --parameters commands='[
+              "aws s3 cp s3://'"$BUCKET"'/db-init/seed-db.sh /tmp/seed-db.sh --region us-east-1",
+              "chmod +x /tmp/seed-db.sh",
+              "sudo AWS_REGION=us-east-1 /tmp/seed-db.sh s3://'"$BUCKET"'/db-init/schema.sql '"$BUCKET"'"
+            ]' \
+            --output text --query "Command.CommandId")
+          echo "Command ID: $COMMAND_ID"
+          sleep 15
+          aws ssm list-command-invocations --command-id "$COMMAND_ID" --details \
+            --query "CommandInvocations[0].CommandPlugins[0].Output" --output text
