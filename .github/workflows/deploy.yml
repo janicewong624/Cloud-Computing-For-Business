@@ -46,12 +46,14 @@ jobs:
         with:
           terraform_version: "1.7.5"
 
-      # Adjust this path if your PHP app files live in a subfolder of the
-      # repo rather than at the root.
+      # App files live in the library-resource-scheduling/ subfolder, not at
+      # repo root - cd into it so the zip's internal paths are flat
+      # (config.php at the zip root, not nested under a subfolder), matching
+      # what Apache expects at /var/www/html.
       - name: Zip application code
         run: |
-          zip -r /tmp/library-booking-app.zip . \
-            -x ".git/*" ".github/*" "infra/*" "uploads/*" "*.md"
+          cd library-resource-scheduling
+          zip -r /tmp/library-booking-app.zip . -x "*.md"
 
       - name: Get S3 bucket + ASG name from Terraform output
         id: tf-output
@@ -65,7 +67,7 @@ jobs:
         run: |
           aws s3 cp /tmp/library-booking-app.zip \
             "s3://${{ steps.tf-output.outputs.bucket }}/artifacts/library-booking-app.zip"
-          aws s3 cp schema.sql \
+          aws s3 cp library-resource-scheduling/schema.sql \
             "s3://${{ steps.tf-output.outputs.bucket }}/db-init/schema.sql"
 
       # No SSM needed anywhere in this deploy. Every instance's user-data
@@ -99,7 +101,7 @@ jobs:
             if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
               echo "Instance refresh ended with status $STATUS" >&2
               exit 1
-            fis
+            fi
             sleep 15
           done
           echo "Timed out waiting for instance refresh." >&2
