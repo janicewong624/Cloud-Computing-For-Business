@@ -15,7 +15,7 @@ terraform {
     bucket         = "assignment-library-219533466732" # <-- change this
     key            = "sandbox/terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "assignment-tf-lock"
+    dynamodb_table = "library-tf-lock"
     encrypt        = true
   }
 }
