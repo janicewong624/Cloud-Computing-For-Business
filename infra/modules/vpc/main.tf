@@ -42,24 +42,6 @@ resource "aws_subnet" "private" {
   }
 }
 
-resource "aws_eip" "nat" {
-  domain = "vpc"
-
-  tags = {
-    Name = "${var.name_prefix}-nat-eip"
-  }
-}
-
-resource "aws_nat_gateway" "this" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public[0].id
-  depends_on    = [aws_internet_gateway.this]
-
-  tags = {
-    Name = "${var.name_prefix}-nat"
-  }
-}
-
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.this.id
 
@@ -88,11 +70,10 @@ resource "aws_route_table" "private" {
   }
 }
 
-resource "aws_route" "private_nat" {
-  route_table_id         = aws_route_table.private.id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.this.id
-}
+# No default route to the internet on purpose - per instructor guidance this
+# design does not use a NAT Gateway. Private-subnet instances reach AWS APIs
+# (SSM, Secrets Manager, S3) entirely over PrivateLink via the VPC endpoints
+# below instead of going out to the internet.
 
 resource "aws_route_table_association" "private" {
   count          = length(aws_subnet.private)
@@ -101,7 +82,8 @@ resource "aws_route_table_association" "private" {
 }
 
 # Gateway endpoint keeps S3 traffic (image uploads, and Amazon Linux's S3-backed
-# yum repos) off the NAT Gateway, avoiding its per-GB data processing charge.
+# yum repos) reachable from the private subnets with no NAT Gateway needed -
+# gateway endpoints are also free, unlike interface endpoints below.
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.this.id
   service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
@@ -110,5 +92,54 @@ resource "aws_vpc_endpoint" "s3" {
 
   tags = {
     Name = "${var.name_prefix}-s3-endpoint"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Interface endpoints (PrivateLink): with no NAT Gateway, these are the ONLY
+# way instances in the private subnets can reach the SSM and Secrets Manager
+# APIs. All three SSM-related endpoints are required together - SSM Agent
+# uses ssm to register, ec2messages/ssmmessages for the actual Session
+# Manager / Run Command channel. secretsmanager is required because
+# user-data reads the DB password from Secrets Manager on every boot.
+# ---------------------------------------------------------------------------
+
+resource "aws_security_group" "vpc_endpoints" {
+  name        = "${var.name_prefix}-vpce-sg"
+  description = "Allow HTTPS from inside the VPC to interface endpoints"
+  vpc_id      = aws_vpc.this.id
+
+  ingress {
+    description = "HTTPS from within the VPC"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.name_prefix}-vpce-sg"
+  }
+}
+
+resource "aws_vpc_endpoint" "interface" {
+  for_each = toset(["ssm", "ssmmessages", "ec2messages", "secretsmanager"])
+
+  vpc_id              = aws_vpc.this.id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.${each.key}"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.private[*].id
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name = "${var.name_prefix}-${each.key}-endpoint"
   }
 }

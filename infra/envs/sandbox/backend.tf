@@ -12,10 +12,10 @@
 # fine as-is.
 terraform {
   backend "s3" {
-    bucket         = "assignment-library-219533466732"
+    bucket         = "assignment-library-219533466732" # <-- change this
     key            = "sandbox/terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "library-tf-lock"
+    dynamodb_table = "assignment-tf-lock"
     encrypt        = true
   }
 }

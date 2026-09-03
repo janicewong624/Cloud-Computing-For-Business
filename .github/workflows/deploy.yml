@@ -41,15 +41,17 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1
 
-      - name: Zip application code
-        run: |
-          zip -r /tmp/library-booking-app.zip . \
-            -x ".git/*" ".github/*" "infra/*" "uploads/*" "*.md"
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.7.5"
+
+      # Adjust this path if your PHP app files live in a subfolder of the
+      # repo rather than at the root.
+      - name: Zip application code
+        run: |
+          zip -r /tmp/library-booking-app.zip . \
+            -x ".git/*" ".github/*" "infra/*" "uploads/*" "*.md"
 
       - name: Get S3 bucket name from Terraform output
         id: tf-output
@@ -63,6 +65,10 @@ jobs:
           aws s3 cp /tmp/library-booking-app.zip \
             "s3://${{ steps.tf-output.outputs.bucket }}/artifacts/library-booking-app.zip"
 
+      # terraform apply above returns as soon as the AWS API calls succeed -
+      # not once new/replaced EC2 instances have finished booting and
+      # registered with SSM. Poll until at least one is ready before sending
+      # the deploy command, otherwise send-command finds zero targets.
       - name: Wait for an SSM-managed running instance
         run: |
           for i in $(seq 1 30); do
