@@ -1,3 +1,27 @@
+name: "CD - Deploy Application"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/tag/commit to deploy"
+        required: false
+        default: "main"
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
+        default: "main"
+
+jobs:
+  infra:
+    name: Apply infrastructure
+    uses: ./.github/workflows/build.yml
+    with:
+      action: apply
+    secrets: inherit
+
   app:
     name: Deploy application code
     needs: infra
@@ -33,3 +57,40 @@
         run: |
           terraform init -input=false
           echo "bucket=$(terraform output -raw s3_bucket_name)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact to S3
+        run: |
+          aws s3 cp /tmp/library-booking-app.zip \
+            "s3://${{ steps.tf-output.outputs.bucket }}/artifacts/library-booking-app.zip"
+
+      - name: Wait for an SSM-managed running instance
+        run: |
+          for i in $(seq 1 30); do
+            COUNT=$(aws ssm describe-instance-information \
+              --filters "Key=tag:App,Values=assignment-library-booking" \
+              --query "length(InstanceInformationList[?PingStatus=='Online'])" \
+              --output text)
+            if [ "$COUNT" -gt 0 ]; then
+              echo "Found $COUNT online instance(s)."
+              exit 0
+            fi
+            echo "No online instances yet, waiting 10s ($i/30)..."
+            sleep 10
+          done
+          echo "Timed out waiting for an SSM-managed instance." >&2
+          exit 1
+
+      - name: Deploy via SSM Run Command
+        run: |
+          aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=tag:App,Values=assignment-library-booking" \
+            --comment "Deploy library-resource-scheduling app" \
+            --parameters commands='[
+              "aws s3 cp s3://'"${{ steps.tf-output.outputs.bucket }}"'/artifacts/library-booking-app.zip /tmp/app.zip --region us-east-1",
+              "sudo rm -rf /var/www/html/*",
+              "sudo unzip -o /tmp/app.zip -d /var/www/html",
+              "sudo chown -R apache:apache /var/www/html",
+              "sudo systemctl restart httpd"
+            ]' \
+            --output text
