@@ -42,6 +42,7 @@ resource "aws_launch_template" "app" {
     aws_region      = var.aws_region
     s3_bucket       = var.artifact_bucket
     artifact_key    = var.artifact_key
+    schema_key      = var.schema_key
   }))
 
   tag_specifications {

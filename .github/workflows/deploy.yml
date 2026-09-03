@@ -53,50 +53,54 @@ jobs:
           zip -r /tmp/library-booking-app.zip . \
             -x ".git/*" ".github/*" "infra/*" "uploads/*" "*.md"
 
-      - name: Get S3 bucket name from Terraform output
+      - name: Get S3 bucket + ASG name from Terraform output
         id: tf-output
         working-directory: infra/envs/sandbox
         run: |
           terraform init -input=false
           echo "bucket=$(terraform output -raw s3_bucket_name)" >> "$GITHUB_OUTPUT"
+          echo "asg_name=$(terraform output -raw asg_name)" >> "$GITHUB_OUTPUT"
 
-      - name: Upload artifact to S3
+      - name: Upload app artifact + schema.sql to S3
         run: |
           aws s3 cp /tmp/library-booking-app.zip \
             "s3://${{ steps.tf-output.outputs.bucket }}/artifacts/library-booking-app.zip"
+          aws s3 cp schema.sql \
+            "s3://${{ steps.tf-output.outputs.bucket }}/db-init/schema.sql"
 
-      # terraform apply above returns as soon as the AWS API calls succeed -
-      # not once new/replaced EC2 instances have finished booting and
-      # registered with SSM. Poll until at least one is ready before sending
-      # the deploy command, otherwise send-command finds zero targets.
-      - name: Wait for an SSM-managed running instance
+      # No SSM needed anywhere in this deploy. Every instance's user-data
+      # already knows how to pull the latest app artifact + seed the DB from
+      # S3 on boot (see infra/modules/asg/templates/user_data.sh.tftpl) - so
+      # to ship a new deploy we just need every instance to reboot fresh from
+      # the launch template. Instance Refresh is a plain AWS Auto Scaling
+      # API call, unrelated to SSM, so this works even on accounts where SSM
+      # registration is blocked.
+      - name: Trigger ASG instance refresh
         run: |
-          for i in $(seq 1 30); do
-            COUNT=$(aws ssm describe-instance-information \
-              --filters "Key=tag:App,Values=assignment-library-booking" \
-              --query "length(InstanceInformationList[?PingStatus=='Online'])" \
-              --output text)
-            if [ "$COUNT" -gt 0 ]; then
-              echo "Found $COUNT online instance(s)."
+          aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name "${{ steps.tf-output.outputs.asg_name }}" \
+            --preferences '{"MinHealthyPercentage": 50, "InstanceWarmup": 120}'
+
+      # Instance Refresh runs in the background and can take several minutes
+      # (old instances drain + terminate, new ones boot + pass health
+      # checks). Poll until it reports Successful so the workflow only shows
+      # green once the new code is actually live, not just "requested".
+      - name: Wait for instance refresh to finish
+        run: |
+          for i in $(seq 1 40); do
+            STATUS=$(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name "${{ steps.tf-output.outputs.asg_name }}" \
+              --max-records 1 \
+              --query "InstanceRefreshes[0].Status" --output text)
+            echo "Instance refresh status: $STATUS ($i/40)"
+            if [ "$STATUS" = "Successful" ]; then
               exit 0
             fi
-            echo "No online instances yet, waiting 10s ($i/30)..."
-            sleep 10
+            if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+              echo "Instance refresh ended with status $STATUS" >&2
+              exit 1
+            fis
+            sleep 15
           done
-          echo "Timed out waiting for an SSM-managed instance." >&2
+          echo "Timed out waiting for instance refresh." >&2
           exit 1
-
-      - name: Deploy via SSM Run Command
-        run: |
-          aws ssm send-command \
-            --document-name "AWS-RunShellScript" \
-            --targets "Key=tag:App,Values=assignment-library-booking" \
-            --comment "Deploy library-resource-scheduling app" \
-            --parameters commands='[
-              "aws s3 cp s3://'"${{ steps.tf-output.outputs.bucket }}"'/artifacts/library-booking-app.zip /tmp/app.zip --region us-east-1",
-              "sudo rm -rf /var/www/html/*",
-              "sudo unzip -o /tmp/app.zip -d /var/www/html",
-              "sudo chown -R apache:apache /var/www/html",
-              "sudo systemctl restart httpd"
-            ]' \
-            --output text

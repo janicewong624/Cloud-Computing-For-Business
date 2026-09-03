@@ -52,6 +52,12 @@ variable "artifact_key" {
   default     = "artifacts/library-booking-app.zip"
 }
 
+variable "schema_key" {
+  description = "S3 object key of schema.sql, uploaded by deploy.yml. user-data imports it on first boot only (skipped once library_booking_db.users already exists) - no SSM needed."
+  type        = string
+  default     = "db-init/schema.sql"
+}
+
 variable "aws_region" {
   description = "AWS region, passed into user-data for the Secrets Manager CLI call."
   type        = string

@@ -55,3 +55,33 @@ fi
 chown -R apache:apache /var/www/html
 systemctl enable httpd
 systemctl restart httpd
+
+# ---------------------------------------------------------------------------
+# Self-seeding database: no SSM needed at all. Every instance checks on boot
+# whether library_booking_db.users already exists - if the DB was already
+# seeded by an earlier instance, this is an instant no-op. If not (first-ever
+# deploy), this instance downloads schema.sql from S3 (uploaded by
+# deploy.yml alongside the app artifact) and imports it. Runs with set -e
+# turned off for this block on purpose, so a harmless race against another
+# instance seeding at the same time during a scale-out doesn't fail the boot.
+# ---------------------------------------------------------------------------
+ALREADY_SEEDED=$(mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -N -e \
+  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME' AND table_name='users'" 2>/dev/null || echo 0)
+
+if [ "$ALREADY_SEEDED" -eq 0 ]; then
+  set +e
+  if aws s3api head-object --bucket "${s3_bucket}" --key "${schema_key}" --region "${aws_region}" >/dev/null 2>&1; then
+    aws s3 cp "s3://${s3_bucket}/${schema_key}" /tmp/schema.sql --region "${aws_region}"
+    mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" < /tmp/schema.sql
+
+    # schema.sql has three tables with an image_url column: rooms, equipment,
+    # books. Point their sample rows at the real S3 bucket instead of the
+    # local /uploads/ path the raw schema.sql ships with.
+    S3_PREFIX="https://${s3_bucket}.s3.${aws_region}.amazonaws.com/uploads/"
+    for table in rooms equipment books; do
+      mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -D "$DB_NAME" -e \
+        "UPDATE $table SET image_url = REPLACE(image_url, '/uploads/', '$S3_PREFIX') WHERE image_url LIKE '/uploads/%';"
+    done
+  fi
+  set -e
+fi
