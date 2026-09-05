@@ -29,7 +29,7 @@ jobs:
         id: tf-output
         working-directory: infra/envs/sandbox
         run: |
-          terraform init -input=false
+          terraform init -input=false -reconfigure
           echo "bucket=$(terraform output -raw s3_bucket_name)" >> "$GITHUB_OUTPUT"
 
       - name: Upload schema.sql + seed-db.sh to S3
