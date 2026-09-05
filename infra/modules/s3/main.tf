@@ -4,7 +4,6 @@
 # listing or writes.
 resource "aws_s3_bucket" "uploads" {
   bucket = var.bucket_name
-  object_lock_enabled = false
 
   # Sandbox environment: by the time you `terraform destroy`, this bucket will
   # contain uploaded event images, deploy.yml release artifacts, and
