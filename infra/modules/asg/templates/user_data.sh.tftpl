@@ -56,6 +56,18 @@ chown -R apache:apache /var/www/html
 systemctl enable httpd
 systemctl restart httpd
 
+# One-time repair, runs on every boot (cheap, idempotent): an earlier
+# version of this script mistakenly rewrote sample image_url values to
+# point at S3 URLs that were never actually uploaded there. Revert any row
+# still carrying that mistake back to the local /uploads/... path so the
+# images that already ship inside the app zip render correctly again.
+set +e
+mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -D "$DB_NAME" -e \
+  "UPDATE rooms SET image_url = CONCAT('/uploads/', SUBSTRING_INDEX(image_url, '/', -1)) WHERE image_url LIKE 'https://%amazonaws.com/uploads/%';
+   UPDATE equipment SET image_url = CONCAT('/uploads/', SUBSTRING_INDEX(image_url, '/', -1)) WHERE image_url LIKE 'https://%amazonaws.com/uploads/%';
+   UPDATE books SET image_url = CONCAT('/uploads/', SUBSTRING_INDEX(image_url, '/', -1)) WHERE image_url LIKE 'https://%amazonaws.com/uploads/%';" 2>/dev/null
+set -e
+
 # ---------------------------------------------------------------------------
 # Self-seeding database: no SSM needed at all. Every instance checks on boot
 # whether library_booking_db.users already exists - if the DB was already
@@ -73,15 +85,13 @@ if [ "$ALREADY_SEEDED" -eq 0 ]; then
   if aws s3api head-object --bucket "${s3_bucket}" --key "${schema_key}" --region "${aws_region}" >/dev/null 2>&1; then
     aws s3 cp "s3://${s3_bucket}/${schema_key}" /tmp/schema.sql --region "${aws_region}"
     mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" < /tmp/schema.sql
-
-    # schema.sql has three tables with an image_url column: rooms, equipment,
-    # books. Point their sample rows at the real S3 bucket instead of the
-    # local /uploads/ path the raw schema.sql ships with.
-    S3_PREFIX="https://${s3_bucket}.s3.${aws_region}.amazonaws.com/uploads/"
-    for table in rooms equipment books; do
-      mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -D "$DB_NAME" -e \
-        "UPDATE $table SET image_url = REPLACE(image_url, '/uploads/', '$S3_PREFIX') WHERE image_url LIKE '/uploads/%';"
-    done
+    # Sample image_url values in schema.sql (e.g. /uploads/sample-room1.jpg)
+    # are left as local paths on purpose - the actual image files ship inside
+    # the app zip's uploads/ folder and are already deployed to
+    # /var/www/html/uploads/ above, so Apache serves them directly with no
+    # S3 involved. S3 is reserved for the app's own "upload a new photo"
+    # feature (helpers.php switches to S3 automatically once AWS_S3_BUCKET
+    # is set, which it is here) - not for these pre-seeded sample images.
   fi
   set -e
 fi
