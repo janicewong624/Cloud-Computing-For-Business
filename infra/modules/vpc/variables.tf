@@ -5,22 +5,30 @@ variable "name_prefix" {
 }
 
 variable "vpc_cidr" {
-  description = "CIDR block for the VPC."
-  type        = string
-  default     = "10.0.0.0/16"
+  type    = string
+  default = "10.0.0.0/16"
 }
 
 variable "azs" {
-  description = "Availability zones to spread subnets across (must have 2 entries)."
+  description = "Two availability zones to spread every tier's subnets across."
   type        = list(string)
+  default     = ["us-east-1a", "us-east-1b"]
 }
 
 variable "public_subnet_cidrs" {
-  description = "CIDR blocks for the public subnets, one per AZ."
+  description = "Web tier - ALB + bastion host."
   type        = list(string)
+  default     = ["10.0.0.0/20", "10.0.16.0/20"]
 }
 
-variable "private_subnet_cidrs" {
-  description = "CIDR blocks for the private subnets, one per AZ."
+variable "private_app_subnet_cidrs" {
+  description = "Application tier - ASG/EC2 instances."
   type        = list(string)
+  default     = ["10.0.32.0/20", "10.0.48.0/20"]
+}
+
+variable "private_db_subnet_cidrs" {
+  description = "Database tier - RDS."
+  type        = list(string)
+  default     = ["10.0.64.0/20", "10.0.80.0/20"]
 }

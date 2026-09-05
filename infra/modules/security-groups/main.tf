@@ -1,7 +1,7 @@
-# assignment-sg-alb: the only security group allowed to receive traffic from the
-# public internet.
+# alb-sg: the only security group allowed to receive traffic from the public
+# internet, matching the architecture diagram.
 resource "aws_security_group" "alb" {
-  name        = "${var.name_prefix}-sg-alb"
+  name        = "${var.name_prefix}-alb-sg"
   description = "Allow inbound HTTP from the internet to the ALB"
   vpc_id      = var.vpc_id
 
@@ -21,16 +21,45 @@ resource "aws_security_group" "alb" {
   }
 
   tags = {
-    Name = "${var.name_prefix}-sg-alb"
+    Name = "${var.name_prefix}-alb-sg"
   }
 }
 
-# assignment-sg-ec2: app instances only ever accept HTTP from the ALB. SSH is
-# scoped to the VPC CIDR only (instances have no public IP, so this only matters
-# for same-VPC tooling); SSM Session Manager is the primary shell access path.
-resource "aws_security_group" "ec2" {
-  name        = "${var.name_prefix}-sg-ec2"
-  description = "Allow HTTP only from the ALB, SSH only from within the VPC"
+# bastion-sg: SSH only from your own IP, never Anywhere-IPv4. The bastion
+# sits in the public subnet purely as a documented manual-access path into
+# the private tiers (matches the architecture diagram) - normal app
+# deployment never uses it, since instances self-deploy from S3 on boot.
+resource "aws_security_group" "bastion" {
+  name        = "${var.name_prefix}-bastion-sg"
+  description = "Allow SSH only from your own IP"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    description = "SSH from my IP only"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.my_ip_cidr]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.name_prefix}-bastion-sg"
+  }
+}
+
+# app-sg: app instances only ever accept HTTP from the ALB, and SSH only
+# from the bastion host - never a raw CIDR block, matching the diagram's
+# bastion -> app tier arrow.
+resource "aws_security_group" "app" {
+  name        = "${var.name_prefix}-app-sg"
+  description = "Allow HTTP only from the ALB, SSH only from the bastion"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -42,11 +71,11 @@ resource "aws_security_group" "ec2" {
   }
 
   ingress {
-    description = "SSH from within the VPC only"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
+    description     = "SSH from the bastion host only"
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.bastion.id]
   }
 
   egress {
@@ -57,22 +86,22 @@ resource "aws_security_group" "ec2" {
   }
 
   tags = {
-    Name = "${var.name_prefix}-sg-ec2"
+    Name = "${var.name_prefix}-app-sg"
   }
 }
 
-# assignment-sg-rds: only the app instances may reach the database.
-resource "aws_security_group" "rds" {
-  name        = "${var.name_prefix}-sg-rds"
+# database-sg: only the app instances may reach the database.
+resource "aws_security_group" "database" {
+  name        = "${var.name_prefix}-database-sg"
   description = "Allow MySQL/Aurora only from application instances"
   vpc_id      = var.vpc_id
 
   ingress {
-    description     = "MySQL/Aurora from EC2 app instances only"
+    description     = "MySQL/Aurora from app instances only"
     from_port       = 3306
     to_port         = 3306
     protocol        = "tcp"
-    security_groups = [aws_security_group.ec2.id]
+    security_groups = [aws_security_group.app.id]
   }
 
   egress {
@@ -83,6 +112,6 @@ resource "aws_security_group" "rds" {
   }
 
   tags = {
-    Name = "${var.name_prefix}-sg-rds"
+    Name = "${var.name_prefix}-database-sg"
   }
 }

@@ -13,11 +13,12 @@ data "aws_caller_identity" "current" {}
 module "vpc" {
   source = "../../modules/vpc"
 
-  name_prefix          = var.name_prefix
-  vpc_cidr             = var.vpc_cidr
-  azs                  = var.azs
-  public_subnet_cidrs  = var.public_subnet_cidrs
-  private_subnet_cidrs = var.private_subnet_cidrs
+  name_prefix              = var.name_prefix
+  vpc_cidr                 = var.vpc_cidr
+  azs                      = var.azs
+  public_subnet_cidrs      = var.public_subnet_cidrs
+  private_app_subnet_cidrs = var.private_app_subnet_cidrs
+  private_db_subnet_cidrs  = var.private_db_subnet_cidrs
 }
 
 module "security_groups" {
@@ -25,7 +26,16 @@ module "security_groups" {
 
   name_prefix = var.name_prefix
   vpc_id      = module.vpc.vpc_id
-  vpc_cidr    = var.vpc_cidr
+  my_ip_cidr  = var.my_ip_cidr
+}
+
+module "bastion" {
+  source = "../../modules/bastion"
+
+  name_prefix      = var.name_prefix
+  public_subnet_id = module.vpc.public_subnet_ids[0]
+  bastion_sg_id    = module.security_groups.bastion_sg_id
+  key_name         = var.key_name
 }
 
 module "s3" {
@@ -44,8 +54,8 @@ module "rds" {
   source = "../../modules/rds"
 
   name_prefix        = var.name_prefix
-  private_subnet_ids = module.vpc.private_subnet_ids
-  rds_sg_id          = module.security_groups.rds_sg_id
+  private_subnet_ids = module.vpc.private_db_subnet_ids
+  rds_sg_id          = module.security_groups.database_sg_id
   db_name            = var.db_name
   db_username        = var.db_username
   db_password        = random_password.db.result
@@ -77,8 +87,8 @@ module "asg" {
 
   name_prefix           = var.name_prefix
   vpc_id                = module.vpc.vpc_id
-  private_subnet_ids    = module.vpc.private_subnet_ids
-  ec2_sg_id             = module.security_groups.ec2_sg_id
+  private_subnet_ids    = module.vpc.private_app_subnet_ids
+  ec2_sg_id             = module.security_groups.app_sg_id
   target_group_arn      = module.alb.target_group_arn
   instance_type         = var.instance_type
   instance_profile_name = var.instance_profile_name

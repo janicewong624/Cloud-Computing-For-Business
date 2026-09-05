@@ -9,7 +9,7 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "vpc_cidr" {
-  description = "VPC CIDR block, used to scope SSH access to inside the VPC only."
+variable "my_ip_cidr" {
+  description = "Your own IP in CIDR form (e.g. 1.2.3.4/32), the only source allowed to SSH into the bastion host."
   type        = string
 }

@@ -22,13 +22,31 @@ variable "azs" {
 }
 
 variable "public_subnet_cidrs" {
-  type    = list(string)
-  default = ["10.0.0.0/24", "10.0.1.0/24"]
+  description = "Web tier - ALB + bastion host."
+  type        = list(string)
+  default     = ["10.0.0.0/20", "10.0.16.0/20"]
 }
 
-variable "private_subnet_cidrs" {
-  type    = list(string)
-  default = ["10.0.10.0/24", "10.0.11.0/24"]
+variable "private_app_subnet_cidrs" {
+  description = "Application tier - ASG/EC2 instances."
+  type        = list(string)
+  default     = ["10.0.32.0/20", "10.0.48.0/20"]
+}
+
+variable "private_db_subnet_cidrs" {
+  description = "Database tier - RDS."
+  type        = list(string)
+  default     = ["10.0.64.0/20", "10.0.80.0/20"]
+}
+
+variable "my_ip_cidr" {
+  description = "Your own IP in CIDR form (e.g. 1.2.3.4/32), used to restrict SSH on the bastion host. Get it from https://checkip.amazonaws.com"
+  type        = string
+}
+
+variable "key_name" {
+  description = "Name of an existing EC2 key pair, used only for the bastion host."
+  type        = string
 }
 
 variable "instance_type" {
