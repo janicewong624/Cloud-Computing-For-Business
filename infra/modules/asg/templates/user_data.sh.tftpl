@@ -73,15 +73,22 @@ if [ "$ALREADY_SEEDED" -eq 0 ]; then
   if aws s3api head-object --bucket "${s3_bucket}" --key "${schema_key}" --region "${aws_region}" >/dev/null 2>&1; then
     aws s3 cp "s3://${s3_bucket}/${schema_key}" /tmp/schema.sql --region "${aws_region}"
     mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" < /tmp/schema.sql
-
-    # schema.sql has three tables with an image_url column: rooms, equipment,
-    # books. Point their sample rows at the real S3 bucket instead of the
-    # local /uploads/ path the raw schema.sql ships with.
-    S3_PREFIX="https://${s3_bucket}.s3.${aws_region}.amazonaws.com/uploads/"
-    for table in rooms equipment books; do
-      mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -D "$DB_NAME" -e \
-        "UPDATE $table SET image_url = REPLACE(image_url, '/uploads/', '$S3_PREFIX') WHERE image_url LIKE '/uploads/%';"
-    done
   fi
   set -e
 fi
+
+# Repair pass, runs on every boot AFTER seeding (cheap, idempotent):
+# normalizes any image_url still pointing at a local /uploads/... path into
+# the real S3 URL. deploy.yml uploads the actual sample image files to
+# s3://bucket/uploads/ on every deploy, so once this rewrite runs, every
+# photo on the site - not just newly-uploaded ones - is genuinely served
+# from S3, per the assignment's "images upload feature shall use S3"
+# requirement. Runs after seeding so the rooms/equipment/books tables are
+# guaranteed to exist by the time this fires, even on the very first boot.
+S3_PREFIX="https://${s3_bucket}.s3.${aws_region}.amazonaws.com/uploads/"
+set +e
+mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -D "$DB_NAME" -e \
+  "UPDATE rooms SET image_url = REPLACE(image_url, '/uploads/', '$S3_PREFIX') WHERE image_url LIKE '/uploads/%';
+   UPDATE equipment SET image_url = REPLACE(image_url, '/uploads/', '$S3_PREFIX') WHERE image_url LIKE '/uploads/%';
+   UPDATE books SET image_url = REPLACE(image_url, '/uploads/', '$S3_PREFIX') WHERE image_url LIKE '/uploads/%';" 2>/dev/null
+set -e

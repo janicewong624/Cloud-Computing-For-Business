@@ -29,6 +29,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       alb_dns_name: ${{ steps.output.outputs.alb_dns_name }}
+    env:
+      TF_VAR_my_ip_cidr: ${{ secrets.TF_VAR_MY_IP_CIDR }}
+      TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
 
     steps:
       - name: Checkout code

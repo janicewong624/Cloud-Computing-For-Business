@@ -63,12 +63,20 @@ jobs:
           echo "bucket=$(terraform output -raw s3_bucket_name)" >> "$GITHUB_OUTPUT"
           echo "asg_name=$(terraform output -raw asg_name)" >> "$GITHUB_OUTPUT"
 
-      - name: Upload app artifact + schema.sql to S3
+      - name: Upload app artifact + schema.sql + sample images to S3
         run: |
           aws s3 cp /tmp/library-booking-app.zip \
             "s3://${{ steps.tf-output.outputs.bucket }}/artifacts/library-booking-app.zip"
           aws s3 cp library-resource-scheduling/schema.sql \
             "s3://${{ steps.tf-output.outputs.bucket }}/db-init/schema.sql"
+          # Assignment requirement: image uploads must go through S3. The
+          # sample/demo photos that ship with the app (rooms, equipment,
+          # books) are synced here too, so every image on the site - not
+          # just ones uploaded later through the admin forms - is actually
+          # served from S3, matching what user-data rewrites the DB rows to
+          # point at.
+          aws s3 sync library-resource-scheduling/uploads \
+            "s3://${{ steps.tf-output.outputs.bucket }}/uploads" --region us-east-1
 
       # No SSM needed anywhere in this deploy. Every instance's user-data
       # already knows how to pull the latest app artifact + seed the DB from
