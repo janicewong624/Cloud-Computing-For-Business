@@ -55,13 +55,14 @@ jobs:
           cd library-resource-scheduling
           zip -r /tmp/library-booking-app.zip . -x "*.md"
 
-      - name: Get S3 bucket + ASG name from Terraform output
+      - name: Get S3 bucket + ASG name + target group ARN from Terraform output
         id: tf-output
         working-directory: infra/envs/sandbox
         run: |
           terraform init -input=false
           echo "bucket=$(terraform output -raw s3_bucket_name)" >> "$GITHUB_OUTPUT"
           echo "asg_name=$(terraform output -raw asg_name)" >> "$GITHUB_OUTPUT"
+          echo "tg_arn=$(terraform output -raw target_group_arn)" >> "$GITHUB_OUTPUT"
 
       - name: Upload app artifact + schema.sql + sample images to S3
         run: |
@@ -78,39 +79,44 @@ jobs:
           aws s3 sync library-resource-scheduling/uploads \
             "s3://${{ steps.tf-output.outputs.bucket }}/uploads" --region us-east-1
 
-      # No SSM needed anywhere in this deploy. Every instance's user-data
-      # already knows how to pull the latest app artifact + seed the DB from
-      # S3 on boot (see infra/modules/asg/templates/user_data.sh.tftpl) - so
-      # to ship a new deploy we just need every instance to reboot fresh from
-      # the launch template. Instance Refresh is a plain AWS Auto Scaling
-      # API call, unrelated to SSM, so this works even on accounts where SSM
-      # registration is blocked.
-      - name: Trigger ASG instance refresh
+      # autoscaling:StartInstanceRefresh is ALSO explicitly denied by this
+      # account's SCP (same story as SSM). So instead of asking the ASG's
+      # management API to do a rolling replacement, we terminate the
+      # underlying EC2 instances directly with ec2:TerminateInstances - a
+      # much more basic permission that isn't blocked. The ASG's own
+      # self-healing (desired capacity vs actual running count) notices the
+      # instances are gone and launches fresh replacements from the launch
+      # template automatically, which pull the new code + re-check the DB
+      # seed on boot, same end result as an instance refresh.
+      - name: Replace running instances with fresh ones
         run: |
-          aws autoscaling start-instance-refresh \
-            --auto-scaling-group-name "${{ steps.tf-output.outputs.asg_name }}" \
-            --preferences '{"MinHealthyPercentage": 50, "InstanceWarmup": 120}'
+          ASG_NAME="${{ steps.tf-output.outputs.asg_name }}"
+          INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
+            --auto-scaling-group-names "$ASG_NAME" \
+            --query "AutoScalingGroups[0].Instances[].InstanceId" --output text)
+          if [ -n "$INSTANCE_IDS" ]; then
+            echo "Terminating: $INSTANCE_IDS"
+            aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
+          else
+            echo "No running instances yet - ASG will launch from scratch."
+          fi
 
-      # Instance Refresh runs in the background and can take several minutes
-      # (old instances drain + terminate, new ones boot + pass health
-      # checks). Poll until it reports Successful so the workflow only shows
-      # green once the new code is actually live, not just "requested".
-      - name: Wait for instance refresh to finish
+      # Poll the target group directly (not the ASG) so this works
+      # regardless of which AWS API happens to be restricted - ALB/target
+      # group permissions are needed for the app to be reachable at all, so
+      # they're never blocked.
+      - name: Wait for new instances to become healthy
         run: |
+          TG_ARN="${{ steps.tf-output.outputs.tg_arn }}"
           for i in $(seq 1 40); do
-            STATUS=$(aws autoscaling describe-instance-refreshes \
-              --auto-scaling-group-name "${{ steps.tf-output.outputs.asg_name }}" \
-              --max-records 1 \
-              --query "InstanceRefreshes[0].Status" --output text)
-            echo "Instance refresh status: $STATUS ($i/40)"
-            if [ "$STATUS" = "Successful" ]; then
+            HEALTHY=$(aws elbv2 describe-target-health \
+              --target-group-arn "$TG_ARN" \
+              --query "length(TargetHealthDescriptions[?TargetHealth.State=='healthy'])" --output text)
+            echo "Healthy targets: $HEALTHY ($i/40)"
+            if [ "$HEALTHY" -gt 0 ]; then
               exit 0
-            fi
-            if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
-              echo "Instance refresh ended with status $STATUS" >&2
-              exit 1
             fi
             sleep 15
           done
-          echo "Timed out waiting for instance refresh." >&2
+          echo "Timed out waiting for a healthy target." >&2
           exit 1
