@@ -255,7 +255,7 @@ function handle_image_upload($file, $uploadDir, $prefix = 'photo') {
     $filename = uniqid($prefix . '_', true) . '.' . $allowedMimes[$imageInfo['mime']];
 
     if (AWS_S3_BUCKET !== '') {
-        return s3_put_object($filename, file_get_contents($file['tmp_name']), $imageInfo['mime']);
+        return s3_put_object('uploads/' . $filename, file_get_contents($file['tmp_name']), $imageInfo['mime']);
     }
 
     if (!is_dir($uploadDir)) {
