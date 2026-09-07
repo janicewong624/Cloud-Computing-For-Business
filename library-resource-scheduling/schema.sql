@@ -27,10 +27,10 @@ CREATE TABLE rooms (
 );
 
 INSERT INTO rooms (room_name, location, capacity, image_url) VALUES
-('Discussion Room 1', 'Library, Level 2', 6, '/uploads/sample-room1.jpg'),
-('Discussion Room 2', 'Library, Level 2', 6, '/uploads/sample-room2.jpg'),
+('Discussion Room 1', 'Library, Level 2', 5, '/uploads/sample-room1.jpg'),
+('Discussion Room 2', 'Library, Level 2', 10, '/uploads/sample-room2.jpg'),
 ('Discussion Room 3', 'Library, Level 3', 4, '/uploads/sample-room3.jpg'),
-('Silent Study Pod', 'Library, Level 3', 2, '/uploads/sample-study-pod.jpg');
+('Discussion Room 4', 'Library, Level 3', 12, '/uploads/sample-room4.jpg');
 
 CREATE TABLE bookings (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -88,7 +88,7 @@ CREATE TABLE books (
 
 INSERT INTO books (title, author, isbn, category, total_copies, image_url) VALUES
 ('Clean Code', 'Robert C. Martin', '9780132350884', 'Computer Science', 3, '/uploads/sample-book-cleancode.jpg'),
-('Introduction to Algorithms', 'Thomas H. Cormen', '9780262046305', 'Computer Science', 2, '/uploads/sample-book-algorithms.png'),
+('Introduction to Algorithms', 'Thomas H. Cormen', '9780262046305', 'Computer Science', 2, '/uploads/sample-book-algorithms.jpg'),
 ('The Pragmatic Programmer', 'Andrew Hunt', '9780135957059', 'Computer Science', 3, '/uploads/sample-book-pragmatic.jpg'),
 ('Principles of Accounting', 'Belverd Needles', '9781111530771', 'Accountancy', 4, '/uploads/sample-book-accounting.jpg');
 
