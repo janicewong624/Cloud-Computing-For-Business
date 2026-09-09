@@ -3,24 +3,15 @@ require '../config.php';
 require '../auth.php';
 require_admin();
 
-$allowedTransitions = [
-    'pending'   => 'confirmed',
-    'confirmed' => 'done',
-];
+$allowedStatuses = ['pending', 'confirmed', 'done'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = (int)$_POST['id'];
+    $status = $_POST['status'] ?? '';
 
-    $stmt = $conn->prepare('SELECT status FROM bookings WHERE id = ?');
-    $stmt->bind_param('i', $id);
-    $stmt->execute();
-    $booking = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    if ($booking && isset($allowedTransitions[$booking['status']])) {
-        $nextStatus = $allowedTransitions[$booking['status']];
+    if (in_array($status, $allowedStatuses, true)) {
         $stmt = $conn->prepare('UPDATE bookings SET status = ? WHERE id = ?');
-        $stmt->bind_param('si', $nextStatus, $id);
+        $stmt->bind_param('si', $status, $id);
         $stmt->execute();
         $stmt->close();
     }
