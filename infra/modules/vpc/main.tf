@@ -86,8 +86,8 @@ resource "aws_subnet" "private_db" {
 
 # Single private route table shared by both private tiers - no route to the
 # internet on purpose (no NAT Gateway, per instructor guidance). Application
-# tier instances reach AWS APIs (SSM, Secrets Manager) via the interface
-# endpoints below; the database tier needs no outbound route at all.
+# tier instances reach Secrets Manager via the interface endpoint below; the
+# database tier needs no outbound route at all.
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.this.id
 
@@ -122,10 +122,17 @@ resource "aws_vpc_endpoint" "s3" {
 }
 
 # ---------------------------------------------------------------------------
-# Interface endpoints (PrivateLink), placed only in the Application Tier
+# Interface endpoint (PrivateLink), placed only in the Application Tier
 # subnets - the database tier never needs to call AWS APIs directly. With no
-# NAT Gateway, these are the only way app instances reach SSM and Secrets
-# Manager.
+# NAT Gateway, this is the only way app instances reach Secrets Manager.
+#
+# Only secretsmanager is created here. ssm/ssmmessages/ec2messages were
+# dropped on purpose: this AWS Academy Learner Lab account has an org-level
+# SCP that blocks SSM entirely (confirmed by testing - a plain EC2 instance
+# with the correct IAM role never registered in Fleet Manager), so those
+# three endpoints would sit there costing money while never doing anything.
+# Manual access into the private tiers goes through the bastion host
+# instead (see modules/bastion) - not SSM Session Manager.
 # ---------------------------------------------------------------------------
 
 resource "aws_security_group" "vpc_endpoints" {
@@ -154,7 +161,7 @@ resource "aws_security_group" "vpc_endpoints" {
 }
 
 resource "aws_vpc_endpoint" "interface" {
-  for_each = toset(["ssm", "ssmmessages", "ec2messages", "secretsmanager"])
+  for_each = toset(["secretsmanager"])
 
   vpc_id              = aws_vpc.this.id
   service_name        = "com.amazonaws.${data.aws_region.current.name}.${each.key}"
